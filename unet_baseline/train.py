@@ -30,7 +30,7 @@ def parse_args():
                         type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/csv/val.csv',
                         type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='aug_fix_lr',
+    parser.add_argument('--event_prefix', default='aug_fix_lr_bigsize',
                         type=str, help='tensorboard logdir prefix')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
@@ -119,8 +119,8 @@ def Train(train_root, train_csv, test_root, test_csv):
         RandomAffine(90, shear=45),
         RandomRotation(90),
         RandomHorizontalFlip(),
-        ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-        Resize(size=(img_size, img_size)),
+        ColorJitter(brightness=0.1),
+        Resize(size=(384, 288)),
         ToTensor()])
 
     train_mask_aug = Compose_own([
@@ -128,11 +128,11 @@ def Train(train_root, train_csv, test_root, test_csv):
         RandomRotation(90),
         RandomHorizontalFlip(),
         ColorJitter(),
-        Resize(size=(img_size, img_size)),
+        Resize(size=(384, 288)),
         ToTensor()])
     ## test
-    test_img_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
-    test_mask_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
+    test_img_aug = Compose_own([Resize(size=(384, 288)), ToTensor()])
+    test_mask_aug = Compose_own([Resize(size=(384, 288)), ToTensor()])
 
     train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
@@ -148,7 +148,7 @@ def Train(train_root, train_csv, test_root, test_csv):
         print('Do not have this loss')
     optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
     if args.lr_policy == 'StepLR':
-        scheduler = StepLR(optimizer, step_size=50, gamma=0.5)
+        scheduler = StepLR(optimizer, step_size=200, gamma=0.5)
 
     # training process
     logging.info('Start Training For Polyp Seg')
