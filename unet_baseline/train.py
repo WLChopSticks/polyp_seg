@@ -30,7 +30,6 @@ def parse_args():
                         type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/csv/val.csv',
                         type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='aug_fix_lr_256_crop',
     parser.add_argument('--event_prefix', default='aug_step100_lr_256_crop',
                         type=str, help='tensorboard logdir prefix')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
@@ -151,6 +150,7 @@ def Train(train_root, train_csv, test_root, test_csv):
         print('Do not have this loss')
     optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
     if args.lr_policy == 'StepLR':
+        scheduler = StepLR(optimizer, step_size=100, gamma=0.5)
 
     # training process
     logging.info('Start Training For Polyp Seg')
