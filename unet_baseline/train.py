@@ -10,8 +10,8 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.optim import Adam
 from tqdm import tqdm
 from torch.optim.lr_scheduler import StepLR
-from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizontalFlip, ColorJitter, Resize, ToTensor, Normalize
-
+from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizontalFlip, ColorJitter, Resize, ToTensor,\
+    Normalize, RandomResizedCrop
 from datasets_own import poly_seg, Compose_own
 from models import UNet
 from utils import CrossEntropyLoss2d, dice_fn
@@ -30,7 +30,7 @@ def parse_args():
                         type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/csv/val.csv',
                         type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='aug_fix_lr_bigsize',
+    parser.add_argument('--event_prefix', default='aug_fix_lr_256_crop',
                         type=str, help='tensorboard logdir prefix')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
@@ -116,23 +116,25 @@ def Train(train_root, train_csv, test_root, test_csv):
     #     Normalize(mean=(0.5, 0.5, 0.5),
     #               std=(0.5, 0.5, 0.5))])
     train_img_aug = Compose_own([
+        RandomResizedCrop(img_size, scale=(0.5, 1.0), ratio=(0.75, 1.33), interpolation=2),
         RandomAffine(90, shear=45),
         RandomRotation(90),
         RandomHorizontalFlip(),
         ColorJitter(brightness=0.1),
-        Resize(size=(384, 288)),
+        Resize(size=(img_size, img_size)),
         ToTensor()])
 
     train_mask_aug = Compose_own([
+        RandomResizedCrop(img_size, scale=(0.5, 1.0), ratio=(0.75, 1.33), interpolation=2),
         RandomAffine(90, shear=45),
         RandomRotation(90),
         RandomHorizontalFlip(),
         ColorJitter(),
-        Resize(size=(384, 288)),
+        Resize(size=(img_size, img_size)),
         ToTensor()])
     ## test
-    test_img_aug = Compose_own([Resize(size=(384, 288)), ToTensor()])
-    test_mask_aug = Compose_own([Resize(size=(384, 288)), ToTensor()])
+    test_img_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
+    test_mask_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
 
     train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
