@@ -78,7 +78,8 @@ def draw_on_image(gt, result, image, savepath, show=False):
     result[..., 1] = result[..., 1] * 255
     overlapping = cv2.addWeighted(image, 1, gt, 0.3, 0)
     overlapping = cv2.addWeighted(overlapping, 1, result, 0.3, 0)
-    cv2.imwrite(savepath, overlapping)
+    htich = np.hstack((image, overlapping))
+    cv2.imwrite(savepath, htich)
     if show:
         cv2.imshow('1', overlapping)
         cv2.waitKey()
