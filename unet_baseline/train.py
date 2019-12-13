@@ -22,17 +22,18 @@ def parse_args():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--model_name', default='unet', type=str, help='unet, ...')
     parser.add_argument('--fold_num', default='0', type=str, help='fold number')
-    parser.add_argument('--train_root', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/train',
+    parser.add_argument('--train_root', default=r'E:\datasets\CVC-912\train',
                         type=str, help='train dataset absolute path')
-    parser.add_argument('--test_root', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/val',
+    parser.add_argument('--test_root', default=r'E:\datasets\CVC-912\val',
                         type=str, help='test or validation dataset absolute path')
-    parser.add_argument('--train_csv', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/csv/train.csv',
+    parser.add_argument('--train_csv', default=r'E:\code\polyp_seg\data\fixed-csv\train.csv',
                         type=str, help='train csv file absolute path')
-    parser.add_argument('--test_csv', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/csv/val.csv',
+    parser.add_argument('--test_csv', default=r'E:\code\polyp_seg\data\fixed-csv\val.csv',
                         type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='aug_fix_lr',
                         type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
+    parser.add_argument('--tensorboard_name', default='bright_0.05')
+    parser.add_argument('--batch_size', default=4, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
@@ -88,6 +89,7 @@ def Train(train_root, train_csv, test_root, test_csv):
 
     # resume
     checkpoint_name = os.path.join(args.checkpoint, args.fold_num+args.params_name)
+    # checkpoint_name = os.path.join(args.checkpoint, args.fold_num + args.params_name)
     if args.resume != 0:
         logging.info('Resuming from checkpoint...')
         checkpoint = torch.load(checkpoint_name)
@@ -119,7 +121,8 @@ def Train(train_root, train_csv, test_root, test_csv):
         RandomAffine(90, shear=45),
         RandomRotation(90),
         RandomHorizontalFlip(),
-        ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+        ColorJitter(brightness=0.05),
+        # ColorJitter(brightness=0.05, contrast=0.2, saturation=0.2, hue=0.1),
         Resize(size=(img_size, img_size)),
         ToTensor()])
 
@@ -137,9 +140,9 @@ def Train(train_root, train_csv, test_root, test_csv):
     train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                              num_workers=8, shuffle=True)
+                              num_workers=0, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size,
-                             num_workers=8, shuffle=True)
+                             num_workers=0, shuffle=True)
 
     # loss function, optimizer and scheduler
     if args.loss == 'ce':
@@ -238,7 +241,10 @@ logging.basicConfig(level=logging.INFO,
 
 if __name__ == "__main__":
     TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
-    log_dir = os.path.join('./Graph', args.event_prefix, TIMESTAMP)
+    if len(args.tensorboard_name) > 1:
+        log_dir = os.path.join('./Graph', args.event_prefix, args.tensorboard_name)
+    else:
+        log_dir = os.path.join('./Graph', args.event_prefix, TIMESTAMP)
     writer = SummaryWriter(log_dir)
     train_root = args.train_root
     train_csv = args.train_csv
