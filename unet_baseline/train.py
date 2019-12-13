@@ -116,7 +116,7 @@ def Train(train_root, train_csv, test_root, test_csv):
     #     Normalize(mean=(0.5, 0.5, 0.5),
     #               std=(0.5, 0.5, 0.5))])
     train_img_aug = Compose_own([
-        RandomResizedCrop(img_size, scale=(0.5, 1.0), ratio=(0.75, 1.33), interpolation=2),
+        RandomResizedCrop(img_size, scale=(0.7, 1.0), ratio=(0.75, 1.33), interpolation=2),
         RandomAffine(90, shear=45),
         RandomRotation(90),
         RandomHorizontalFlip(),
@@ -125,7 +125,7 @@ def Train(train_root, train_csv, test_root, test_csv):
         ToTensor()])
 
     train_mask_aug = Compose_own([
-        RandomResizedCrop(img_size, scale=(0.5, 1.0), ratio=(0.75, 1.33), interpolation=2),
+        RandomResizedCrop(img_size, scale=(0.7, 1.0), ratio=(0.75, 1.33), interpolation=2),
         RandomAffine(90, shear=45),
         RandomRotation(90),
         RandomHorizontalFlip(),
