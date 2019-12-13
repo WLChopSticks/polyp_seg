@@ -28,6 +28,10 @@ share/python-wheels/
 MANIFEST
 
 .idea/
+plot/results
+unet_baseline/checkpoint
+unet_baseline/Graph
+
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

@@ -40,7 +40,7 @@ def valdata(val_csv_path, dataset_root, checkpoint_path):
 img_size = 256
 dataset_root = r'E:\datasets\CVC-912\test'
 val_csv_path = [r'E:\code\polyp_seg\data\fixed-csv\test.csv']
-checkpoint_path = [r'E:\code\polyp_seg\unet_baseline\checkpoint\0unet_params.pkl']
+checkpoint_path = [r'E:\code\polyp_seg\unet_baseline\checkpoint\0unet_params_jitter_bright0.1.pkl']
 dice = []
 for i, j in zip(val_csv_path, checkpoint_path):
     dice.append(valdata(i, dataset_root, j))
