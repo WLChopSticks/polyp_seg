@@ -11,7 +11,7 @@ from torch.optim import Adam
 from tqdm import tqdm
 from torch.optim.lr_scheduler import StepLR
 from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizontalFlip, ColorJitter, Resize, ToTensor,\
-    Normalize, RandomResizedCrop
+    Normalize, RandomResizedCrop, RandomOrder, RandomApply
 from datasets_own import poly_seg, Compose_own
 from models import UNet
 from utils import CrossEntropyLoss2d, dice_fn
@@ -30,7 +30,7 @@ def parse_args():
                         type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/csv/val.csv',
                         type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='aug_step100_lr_256_crop',
+    parser.add_argument('--event_prefix', default='aug_fix_lr_256_random-aug',
                         type=str, help='tensorboard logdir prefix')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
@@ -116,20 +116,16 @@ def Train(train_root, train_csv, test_root, test_csv):
     #     Normalize(mean=(0.5, 0.5, 0.5),
     #               std=(0.5, 0.5, 0.5))])
     train_img_aug = Compose_own([
-        RandomResizedCrop(img_size, scale=(0.7, 1.0), ratio=(0.75, 1.33), interpolation=2),
-        RandomAffine(90, shear=45),
-        RandomRotation(90),
-        RandomHorizontalFlip(),
+        RandomOrder([RandomApply([RandomAffine(90, shear=45)]), RandomApply([RandomRotation(90)]),
+                     RandomApply([RandomHorizontalFlip()])]),
         ColorJitter(brightness=0.1),
         Resize(size=(img_size, img_size)),
         ToTensor()])
 
     train_mask_aug = Compose_own([
-        RandomResizedCrop(img_size, scale=(0.7, 1.0), ratio=(0.75, 1.33), interpolation=2),
-        RandomAffine(90, shear=45),
-        RandomRotation(90),
-        RandomHorizontalFlip(),
-        ColorJitter(),
+        RandomOrder([RandomApply([RandomAffine(90, shear=45)]), RandomApply([RandomRotation(90)]),
+                     RandomApply([RandomHorizontalFlip()])]),
+        ColorJitter(brightness=0.1),
         Resize(size=(img_size, img_size)),
         ToTensor()])
     ## test
@@ -150,7 +146,7 @@ def Train(train_root, train_csv, test_root, test_csv):
         print('Do not have this loss')
     optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
     if args.lr_policy == 'StepLR':
-        scheduler = StepLR(optimizer, step_size=100, gamma=0.5)
+        scheduler = StepLR(optimizer, step_size=200, gamma=0.5)
 
     # training process
     logging.info('Start Training For Polyp Seg')
