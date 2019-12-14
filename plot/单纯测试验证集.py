@@ -36,12 +36,12 @@ def valdata(val_csv_path, dataset_root, checkpoint_path):
     print(val_dice_epoch)
     return val_dice_epoch
 
-
+import sys
 img_size = 256
-dataset_root = r'E:\datasets\CVC-912\test'
-val_csv_path = [r'E:\code\polyp_seg\data\fixed-csv\test.csv']
-checkpoint_path = [r'E:\code\polyp_seg\unet_baseline\checkpoint\0unet_params_jitter_bright0.1.pkl']
+dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
+val_csv_path = [os.path.join(sys.path[0],'../data/fixed-csv/test.csv')]
+checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/0unet_params.pkl')]
 dice = []
 for i, j in zip(val_csv_path, checkpoint_path):
     dice.append(valdata(i, dataset_root, j))
-print(sum(dice)/1)
+print(sum(dice)/len(val_csv_path))

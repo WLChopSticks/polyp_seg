@@ -7,31 +7,27 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from tqdm import tqdm
 from torch.optim.lr_scheduler import StepLR
 from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizontalFlip, ColorJitter, Resize, ToTensor,\
-    Normalize, RandomResizedCrop, RandomOrder, RandomApply
+    Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose
 from datasets_own import poly_seg, Compose_own
 from models import UNet
 from utils import CrossEntropyLoss2d, dice_fn
 from datetime import datetime
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Segmeantation for Breast',
+    parser = argparse.ArgumentParser(description='Segmeantation for polyp',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--model_name', default='unet', type=str, help='unet, ...')
     parser.add_argument('--fold_num', default='0', type=str, help='fold number')
-    parser.add_argument('--train_root', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/train',
-                        type=str, help='train dataset absolute path')
-    parser.add_argument('--test_root', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/val',
-                        type=str, help='test or validation dataset absolute path')
-    parser.add_argument('--train_csv', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/csv/train.csv',
-                        type=str, help='train csv file absolute path')
-    parser.add_argument('--test_csv', default='/home/jiaxin/MICCAI2020/data/CVC-912-fixed/csv/val.csv',
-                        type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='aug_fix_lr_256_random-aug',
-                        type=str, help='tensorboard logdir prefix')
+    parser.add_argument('--train_root', default=r'', type=str, help='train dataset absolute path')
+    parser.add_argument('--test_root', default=r'', type=str, help='test or validation dataset absolute path')
+    parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
+    parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
+    parser.add_argument('--event_prefix', default='aug_fix_lr_256_random-aug', type=str, help='tensorboard logdir prefix')
+    parser.add_argument('--tensorboard_name', default='random_transform')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
@@ -116,17 +112,22 @@ def Train(train_root, train_csv, test_root, test_csv):
     #     Normalize(mean=(0.5, 0.5, 0.5),
     #               std=(0.5, 0.5, 0.5))])
     train_img_aug = Compose_own([
+        # RandomAffine(90, shear=45),
+        # RandomRotation(90),
+        # RandomHorizontalFlip(),
+        # ColorJitter(brightness=0.05, contrast=0.2, saturation=0.2, hue=0.1),
         RandomOrder([RandomApply([RandomAffine(90, shear=45)]), RandomApply([RandomRotation(90)]),
                      RandomApply([RandomHorizontalFlip()])]),
-        ColorJitter(brightness=0.1),
-        Resize(size=(img_size, img_size)),
+        RandomResizedCrop((img_size, img_size),scale=(0.7,1),ratio=(1,1)),
+        ColorJitter(brightness=0.05),
+        # Resize(size=(img_size, img_size)),
         ToTensor()])
 
     train_mask_aug = Compose_own([
         RandomOrder([RandomApply([RandomAffine(90, shear=45)]), RandomApply([RandomRotation(90)]),
                      RandomApply([RandomHorizontalFlip()])]),
-        ColorJitter(brightness=0.1),
-        Resize(size=(img_size, img_size)),
+        RandomResizedCrop((img_size, img_size), scale=(0.7, 1), ratio=(1, 1)),
+        # Resize(size=(img_size, img_size)),
         ToTensor()])
     ## test
     test_img_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
@@ -144,7 +145,8 @@ def Train(train_root, train_csv, test_root, test_csv):
         criterion = CrossEntropyLoss2d().to(device)
     else:
         print('Do not have this loss')
-    optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
+    # optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
+    optimizer = SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     if args.lr_policy == 'StepLR':
         scheduler = StepLR(optimizer, step_size=200, gamma=0.5)
 
@@ -242,4 +244,14 @@ if __name__ == "__main__":
     train_csv = args.train_csv
     test_root = args.test_root
     test_csv = args.test_csv
+    if len(train_root) == 0:
+        train_root = os.path.join(sys.path[0], '../data/CVC-912/train')
+    if len(test_root) == 0:
+        test_root = os.path.join(sys.path[0], '../data/CVC-912/val')
+    if len(train_csv) == 0:
+        train_csv = os.path.join(sys.path[0], '../data/fixed-csv/train.csv')
+    if len(test_csv) == 0:
+        test_csv = os.path.join(sys.path[0], '../data/fixed-csv/val.csv')
+
+
     Train(train_root, train_csv, test_root, test_csv)

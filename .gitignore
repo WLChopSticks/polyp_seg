@@ -32,6 +32,7 @@ plot/results
 unet_baseline/checkpoint
 unet_baseline/Graph
 plot/results
+data/CVC-912
 
 
 # PyInstaller

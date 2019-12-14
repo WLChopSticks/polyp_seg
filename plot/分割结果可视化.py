@@ -7,6 +7,7 @@ from PIL import Image
 from models.unet import UNet
 from matplotlib import pyplot as plt
 import cv2
+import sys
 
 
 def get_img_gt_result_draw(dataset_root=None, dataframe=None, index=None, img_transform=None,
@@ -87,10 +88,14 @@ def draw_on_image(gt, result, image, savepath, show=False):
 
 
 # 参数
-dataset_root = r'E:\datasets\CVC-912\test'
-val_csv_path = r'E:\code\polyp_seg\data\fixed-csv\test.csv'
-savedir = r'E:\code\polyp_seg\plot\results'
-checkpoint = r'E:\code\polyp_seg\unet_baseline\checkpoint\0unet_params.pkl'
+# dataset_root = r'E:\datasets\CVC-912\test'
+# val_csv_path = r'E:\code\polyp_seg\data\fixed-csv\test.csv'
+# savedir = r'E:\code\polyp_seg\plot\results'
+# checkpoint = r'E:\code\polyp_seg\unet_baseline\checkpoint\0unet_params.pkl'
+dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
+val_csv_path = os.path.join(sys.path[0],'../data/fixed-csv/test.csv')
+checkpoint = os.path.join(sys.path[0],'../unet_baseline/checkpoint/0unet_params.pkl')
+savedir = os.path.join(sys.path[0],'results')
 test_index = 100
 img_size_to_net = 256
 test_img_aug = Compose([Resize(size=(img_size_to_net, img_size_to_net)), ToTensor()])
