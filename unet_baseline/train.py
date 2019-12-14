@@ -11,7 +11,7 @@ from torch.optim import Adam, SGD
 from tqdm import tqdm
 from torch.optim.lr_scheduler import StepLR
 from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizontalFlip, ColorJitter, Resize, ToTensor,\
-    Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose
+    Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose, RandomVerticalFlip
 from datasets_own import poly_seg, Compose_own
 from models import UNet
 from utils import CrossEntropyLoss2d, dice_fn
@@ -26,13 +26,13 @@ def parse_args():
     parser.add_argument('--test_root', default=r'', type=str, help='test or validation dataset absolute path')
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='aug_fix_lr_256_random-aug', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='random_transform')
+    parser.add_argument('--event_prefix', default='unet', type=str, help='tensorboard logdir prefix')
+    parser.add_argument('--tensorboard_name', default='optim_sgd')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-    parser.add_argument('--num_epoch', default=200, type=int, help='num epoch')
+    parser.add_argument('--num_epoch', default=300, type=int, help='num epoch')
     parser.add_argument('--loss', default='ce', type=str, help='ce, dice')
     parser.add_argument('--img_size', default=256, type=int, help='512')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
@@ -117,7 +117,7 @@ def Train(train_root, train_csv, test_root, test_csv):
         # RandomHorizontalFlip(),
         # ColorJitter(brightness=0.05, contrast=0.2, saturation=0.2, hue=0.1),
         RandomOrder([RandomApply([RandomAffine(90, shear=45)]), RandomApply([RandomRotation(90)]),
-                     RandomApply([RandomHorizontalFlip()])]),
+                     RandomApply([RandomHorizontalFlip()]),RandomApply([RandomVerticalFlip()])]),
         RandomResizedCrop((img_size, img_size),scale=(0.7,1),ratio=(1,1)),
         ColorJitter(brightness=0.05),
         # Resize(size=(img_size, img_size)),
@@ -125,7 +125,7 @@ def Train(train_root, train_csv, test_root, test_csv):
 
     train_mask_aug = Compose_own([
         RandomOrder([RandomApply([RandomAffine(90, shear=45)]), RandomApply([RandomRotation(90)]),
-                     RandomApply([RandomHorizontalFlip()])]),
+                     RandomApply([RandomHorizontalFlip()]), RandomApply([RandomVerticalFlip()])]),
         RandomResizedCrop((img_size, img_size), scale=(0.7, 1), ratio=(1, 1)),
         # Resize(size=(img_size, img_size)),
         ToTensor()])
@@ -136,9 +136,9 @@ def Train(train_root, train_csv, test_root, test_csv):
     train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                              num_workers=8, shuffle=True)
+                              num_workers=0, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size,
-                             num_workers=8, shuffle=True)
+                             num_workers=0, shuffle=True)
 
     # loss function, optimizer and scheduler
     if args.loss == 'ce':
@@ -148,7 +148,7 @@ def Train(train_root, train_csv, test_root, test_csv):
     # optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
     optimizer = SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     if args.lr_policy == 'StepLR':
-        scheduler = StepLR(optimizer, step_size=200, gamma=0.5)
+        scheduler = StepLR(optimizer, step_size=100, gamma=0.5)
 
     # training process
     logging.info('Start Training For Polyp Seg')
@@ -238,7 +238,10 @@ logging.basicConfig(level=logging.INFO,
 
 if __name__ == "__main__":
     TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
-    log_dir = os.path.join('./Graph', args.event_prefix, TIMESTAMP)
+    if len(args.tensorboard_name) == 0:
+        log_dir = os.path.join('./Graph', args.event_prefix, TIMESTAMP)
+    else:
+        log_dir = os.path.join('./Graph', args.event_prefix, args.tensorboard_name)
     writer = SummaryWriter(log_dir)
     train_root = args.train_root
     train_csv = args.train_csv
