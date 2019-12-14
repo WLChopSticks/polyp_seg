@@ -13,7 +13,7 @@ from torch.optim.lr_scheduler import StepLR
 from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizontalFlip, ColorJitter, Resize, ToTensor,\
     Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose, RandomVerticalFlip, RandomChoice
 from datasets_own import poly_seg, Compose_own
-from models import UNet
+from models import UNet, fcn
 from utils import CrossEntropyLoss2d, dice_fn
 from datetime import datetime
 
@@ -26,8 +26,8 @@ def parse_args():
     parser.add_argument('--test_root', default=r'', type=str, help='test or validation dataset absolute path')
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='unet', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='trans_rand_choice')
+    parser.add_argument('--event_prefix', default='fcn', type=str, help='tensorboard logdir prefix')
+    parser.add_argument('--tensorboard_name', default='deconv')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
@@ -47,6 +47,9 @@ def parse_args():
 def build_model(model_name, num_classes):
     if model_name == 'unet':
         net = UNet(colordim=3, n_classes=num_classes)
+    elif model_name == 'fcn':
+        vgg_model = fcn.VGGNet(requires_grad=True, remove_fc=True)
+        net = fcn.FCNs(pretrained_net=vgg_model, n_class=num_classes)
     else:
         print('wait a minute')
     return net
@@ -128,8 +131,6 @@ def Train(train_root, train_csv, test_root, test_csv):
         RandomRotation(90),
         RandomHorizontalFlip(),
         RandomVerticalFlip(),
-        RandomChoice([ColorJitter(brightness=0.05), ColorJitter(contrast=0.05),
-                      ColorJitter(saturation=0.05), ColorJitter(hue=0.05)]),
         RandomResizedCrop((img_size, img_size), scale=(0.7, 1), ratio=(1, 1)),
         ToTensor()])
     ## test
