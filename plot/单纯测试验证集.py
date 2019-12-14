@@ -43,9 +43,9 @@ def valdata(val_csv_path, dataset_root, checkpoint_path):
             dice = dice_fn(outputs, labels)
             val_dice += dice.item()
 
-            predict_masks = torch.argmax(outputs)
+            predict_masks = torch.argmax(outputs, dim=1).float()
             #
-            validate_gt = labels
+            validate_gt = labels.float()
 
             label_probs_rep_inverse = (predict_masks == 0).float()
             train_label_rep_inverse = (validate_gt == 0).float()
@@ -106,9 +106,12 @@ def valdata(val_csv_path, dataset_root, checkpoint_path):
 
 
     val_dice_epoch = val_dice / len(val_dataloader.dataset)
-    print('val_dice ' + val_dice_epoch)
+    print('val_dice ' + str(val_dice_epoch))
     val_Sensitivity_epoch = Sensitivity / len(val_dataloader.dataset)
-    print('val_Sensitivity ' + val_Sensitivity_epoch)
+    print('val_Sensitivity ' + str(val_Sensitivity_epoch))
+    print('dice' + str(F1 / len(val_dataloader.dataset)))
+    print('IoU_poly' + str(IoU_poly / len(val_dataloader.dataset)))
+
 
 
 
@@ -118,7 +121,7 @@ import sys
 img_size = 256
 dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
 val_csv_path = [os.path.join(sys.path[0],'../data/fixed-csv/test.csv')]
-checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/0unet_params.pkl')]
+checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/dice_0.715.pkl')]
 dice = []
 for i, j in zip(val_csv_path, checkpoint_path):
     dice.append(valdata(i, dataset_root, j))
