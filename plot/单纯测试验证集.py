@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import numpy as np
 import torch
 from datasets_own import poly_seg, Compose_own
@@ -11,7 +12,7 @@ from torchvision.transforms import Resize, ToTensor
 from utils import dice_fn
 
 
-def valdata(val_csv_path, dataset_root, checkpoint_path):
+def validate(val_csv_path, dataset_root, checkpoint_path):
     test_img_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
     test_mask_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
     # 加载参数
@@ -104,25 +105,35 @@ def valdata(val_csv_path, dataset_root, checkpoint_path):
             IoU_bg += temp_IoU_bg.item()
             IoU_mean += temp_IoU_mean.item()
 
+    Rec = Sensitivity / len(val_dataloader.dataset)
+    Spec = Specificity / len(val_dataloader.dataset)
+    Prec = Precision / len(val_dataloader.dataset)
+    Dice = F1 / len(val_dataloader.dataset)
+    F2 = F2 / len(val_dataloader.dataset)
+    IoU_p = IoU_poly / len(val_dataloader.dataset)
+    IoU_b = IoU_bg / len(val_dataloader.dataset)
+    IoU_m = IoU_mean / len(val_dataloader.dataset)
+    Acc = ACC_overall / len(val_dataloader.dataset)
 
-    val_dice_epoch = val_dice / len(val_dataloader.dataset)
-    print('val_dice ' + str(val_dice_epoch))
-    val_Sensitivity_epoch = Sensitivity / len(val_dataloader.dataset)
-    print('val_Sensitivity ' + str(val_Sensitivity_epoch))
-    print('dice' + str(F1 / len(val_dataloader.dataset)))
-    print('IoU_poly' + str(IoU_poly / len(val_dataloader.dataset)))
+    print('val_dice ' + str(val_dice / len(val_dataloader.dataset)))
+    print('Recall: %f ' % Rec)
+    print('Specificity: %f '% Spec)
+    print('Precision: %f ' % Prec)
+    print('Dice: %f ' % Dice)
+    print('F2: %f ' % F2)
+    print('IoU_p: %f ' % IoU_p)
+    print('IoU_b: %f ' % IoU_b)
+    print('IoU_m: %f ' % IoU_m)
+    print('Acc: %f ' % Acc)
+
+    return val_dice / len(val_dataloader.dataset)
 
 
-
-
-    return val_dice_epoch
-
-import sys
 img_size = 256
 dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
 val_csv_path = [os.path.join(sys.path[0],'../data/fixed-csv/test.csv')]
 checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/dice_0.715.pkl')]
 dice = []
 for i, j in zip(val_csv_path, checkpoint_path):
-    dice.append(valdata(i, dataset_root, j))
-print(sum(dice)/len(val_csv_path))
+    dice.append(validate(i, dataset_root, j))
+print(dice)
