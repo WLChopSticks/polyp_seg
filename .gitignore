@@ -31,6 +31,7 @@ MANIFEST
 plot/results
 unet_baseline/checkpoint
 unet_baseline/Graph
+plot/results
 
 
 # PyInstaller
