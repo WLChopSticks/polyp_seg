@@ -26,13 +26,13 @@ def parse_args():
     parser.add_argument('--test_root', default=r'', type=str, help='test or validation dataset absolute path')
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='fcn', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='deconv')
+    parser.add_argument('--event_prefix', default='unet', type=str, help='tensorboard logdir prefix')
+    parser.add_argument('--tensorboard_name', default='deconv_init')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-    parser.add_argument('--num_epoch', default=300, type=int, help='num epoch')
+    parser.add_argument('--num_epoch', default=200, type=int, help='num epoch')
     parser.add_argument('--loss', default='ce', type=str, help='ce, dice')
     parser.add_argument('--img_size', default=256, type=int, help='512')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
@@ -119,19 +119,16 @@ def Train(train_root, train_csv, test_root, test_csv):
         RandomAffine(90, shear=45),
         RandomRotation(90),
         RandomHorizontalFlip(),
-        RandomVerticalFlip(),
-        RandomChoice([ColorJitter(brightness=0.05), ColorJitter(contrast=0.05),
-                      ColorJitter(saturation=0.05), ColorJitter(hue=0.05)]),
-        RandomResizedCrop((img_size, img_size),scale=(0.7,1),ratio=(1,1)),
         ColorJitter(brightness=0.05),
+        Resize((img_size, img_size)),
         ToTensor()])
 
     train_mask_aug = Compose_own([
         RandomAffine(90, shear=45),
         RandomRotation(90),
         RandomHorizontalFlip(),
-        RandomVerticalFlip(),
-        RandomResizedCrop((img_size, img_size), scale=(0.7, 1), ratio=(1, 1)),
+        # ColorJitter(brightness=0.05),
+        Resize((img_size, img_size)),
         ToTensor()])
     ## test
     test_img_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
