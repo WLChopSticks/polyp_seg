@@ -11,10 +11,10 @@ from torch.optim import Adam, SGD
 from tqdm import tqdm
 from torch.optim.lr_scheduler import StepLR
 from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizontalFlip, ColorJitter, Resize, ToTensor,\
-    Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose, RandomVerticalFlip, RandomChoice
+    Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose, RandomVerticalFlip, RandomChoice, RandomGrayscale
 from datasets_own import poly_seg, Compose_own
 from models import UNet, fcn
-from utils import CrossEntropyLoss2d, dice_fn
+from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss
 from datetime import datetime
 
 def parse_args():
@@ -27,13 +27,13 @@ def parse_args():
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='unet', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='deconv_init')
+    parser.add_argument('--tensorboard_name', default='union_loss')
     parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--num_epoch', default=200, type=int, help='num epoch')
-    parser.add_argument('--loss', default='ce', type=str, help='ce, dice')
+    parser.add_argument('--loss', default='union', type=str, help='ce, union')
     parser.add_argument('--img_size', default=256, type=int, help='512')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
     parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
@@ -144,6 +144,8 @@ def Train(train_root, train_csv, test_root, test_csv):
     # loss function, optimizer and scheduler
     if args.loss == 'ce':
         criterion = CrossEntropyLoss2d().to(device)
+    elif args.loss == 'union':
+        criterion = UnionLossWithCrossEntropyAndDiceLoss().to(device)
     else:
         print('Do not have this loss')
     optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
