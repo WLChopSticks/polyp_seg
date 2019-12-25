@@ -11,36 +11,39 @@ from torch.optim import Adam, SGD
 from tqdm import tqdm
 from torch.optim.lr_scheduler import StepLR
 from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizontalFlip, ColorJitter, Resize, ToTensor,\
-    Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose, RandomVerticalFlip, RandomChoice, RandomGrayscale
+    Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose, RandomVerticalFlip, RandomChoice, RandomGrayscale,\
+    RandomSizedCrop
 from datasets_own import poly_seg, Compose_own
 from models import UNet, fcn
+from models.deeplab3_plus.deeplab import *
 from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss
 from datetime import datetime
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Segmeantation for polyp',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--model_name', default='unet', type=str, help='unet, ...')
+    parser.add_argument('--model_name', default='deeplabV3+', type=str, help='unet, fcn, deeplabV3+')
     parser.add_argument('--fold_num', default='0', type=str, help='fold number')
     parser.add_argument('--train_root', default=r'', type=str, help='train dataset absolute path')
     parser.add_argument('--test_root', default=r'', type=str, help='test or validation dataset absolute path')
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='unet', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='union_loss')
-    parser.add_argument('--batch_size', default=8, type=int, help='batch_size')
+    parser.add_argument('--event_prefix', default='deeplabV3', type=str, help='tensorboard logdir prefix')
+    parser.add_argument('--tensorboard_name', default='aug2')
+    parser.add_argument('--batch_size', default=4, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-    parser.add_argument('--num_epoch', default=200, type=int, help='num epoch')
+    parser.add_argument('--num_epoch', default=100, type=int, help='num epoch')
     parser.add_argument('--loss', default='union', type=str, help='ce, union')
     parser.add_argument('--img_size', default=256, type=int, help='512')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
     parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
-    parser.add_argument('--params_name', default='unet_params.pkl')
+    parser.add_argument('--params_name', default='run3.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
+    parser.add_argument('--style', default='', help='none or aug')
     args = parser.parse_args()
     return args
 
@@ -50,6 +53,12 @@ def build_model(model_name, num_classes):
     elif model_name == 'fcn':
         vgg_model = fcn.VGGNet(requires_grad=True, remove_fc=True)
         net = fcn.FCNs(pretrained_net=vgg_model, n_class=num_classes)
+    elif model_name == 'deeplabV3+':
+        net = DeepLab(num_classes=num_classes,
+                        backbone='resnet',
+                        output_stride=16,
+                        sync_bn=True,
+                        freeze_bn=False)
     else:
         print('wait a minute')
     return net
@@ -86,7 +95,10 @@ def Train(train_root, train_csv, test_root, test_csv):
     net = build_model(args.model_name, num_classes)
 
     # resume
-    checkpoint_name = os.path.join(args.checkpoint, args.fold_num+args.params_name)
+    checkpoint_path = os.path.join(args.checkpoint, args.model_name)
+    if not os.path.exists(checkpoint_path):
+        os.mkdir(checkpoint_path)
+    checkpoint_name = os.path.join(checkpoint_path, args.fold_num+args.params_name)
     if args.resume != 0:
         logging.info('Resuming from checkpoint...')
         checkpoint = torch.load(checkpoint_name)
@@ -115,24 +127,38 @@ def Train(train_root, train_csv, test_root, test_csv):
     #     Normalize(mean=(0.5, 0.5, 0.5),
     #               std=(0.5, 0.5, 0.5))])
     # RandomOrder
-    train_img_aug = Compose_own([
-        RandomAffine(90, shear=45),
-        RandomRotation(90),
-        RandomHorizontalFlip(),
-        ColorJitter(brightness=0.05),
-        Resize((img_size, img_size)),
-        ToTensor()])
+    if args.style == 'aug':
+        train_img_aug = Compose_own([
+            RandomAffine(90, shear=45),
+            RandomRotation(90),
+            RandomHorizontalFlip(),
+            RandomVerticalFlip(),
+            ColorJitter(brightness=0.1),
+            Resize((288, 384)),
+            ToTensor()])
 
-    train_mask_aug = Compose_own([
-        RandomAffine(90, shear=45),
-        RandomRotation(90),
-        RandomHorizontalFlip(),
-        # ColorJitter(brightness=0.05),
-        Resize((img_size, img_size)),
-        ToTensor()])
+        train_mask_aug = Compose_own([
+            RandomAffine(90, shear=45),
+            RandomRotation(90),
+            RandomHorizontalFlip(),
+            # ColorJitter(brightness=0.05),
+            RandomVerticalFlip(),
+            Resize((288, 384)),
+            ToTensor()])
+    else:
+        train_img_aug = Compose_own([
+            Resize((288, 384)),
+            ToTensor()])
+
+        train_mask_aug = Compose_own([
+            Resize((288, 384)),
+            ToTensor()])
+
+
+
     ## test
-    test_img_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
-    test_mask_aug = Compose_own([Resize(size=(img_size, img_size)), ToTensor()])
+    test_img_aug = Compose_own([Resize(size=(288, 384)), ToTensor()])
+    test_mask_aug = Compose_own([Resize(size=(288, 384)), ToTensor()])
 
     train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
