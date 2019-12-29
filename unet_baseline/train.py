@@ -28,19 +28,19 @@ def parse_args():
     parser.add_argument('--test_root', default=r'', type=str, help='test or validation dataset absolute path')
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='deeplabV3', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='aug2')
+    parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
+    parser.add_argument('--tensorboard_name', default='init')
     parser.add_argument('--batch_size', default=4, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--num_epoch', default=100, type=int, help='num epoch')
     parser.add_argument('--loss', default='union', type=str, help='ce, union')
-    parser.add_argument('--img_size', default=256, type=int, help='512')
+    parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
     parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
-    parser.add_argument('--params_name', default='run3.pkl')
+    parser.add_argument('--params_name', default='run1.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
     parser.add_argument('--style', default='', help='none or aug')
@@ -79,7 +79,7 @@ def Train(train_root, train_csv, test_root, test_csv):
     logging.info('num epoch: %d' % args.num_epoch)
     logging.info('learing rate: %f' % args.lr)
     logging.info('loss: %s' % args.loss)
-    logging.info('img_size: %d' % args.img_size)
+    logging.info('img_size: %s' % str(args.img_size))
     logging.info('lr_policy: %s' % args.lr_policy)
     logging.info('resume: %s' % args.resume)
     logging.info('log_name: %s' % args.fold_num+args.log_name)
@@ -134,7 +134,7 @@ def Train(train_root, train_csv, test_root, test_csv):
             RandomHorizontalFlip(),
             RandomVerticalFlip(),
             ColorJitter(brightness=0.1),
-            Resize((288, 384)),
+            Resize(img_size),
             ToTensor()])
 
         train_mask_aug = Compose_own([
@@ -143,22 +143,22 @@ def Train(train_root, train_csv, test_root, test_csv):
             RandomHorizontalFlip(),
             # ColorJitter(brightness=0.05),
             RandomVerticalFlip(),
-            Resize((288, 384)),
+            Resize(img_size),
             ToTensor()])
     else:
         train_img_aug = Compose_own([
-            Resize((288, 384)),
+            Resize(img_size),
             ToTensor()])
 
         train_mask_aug = Compose_own([
-            Resize((288, 384)),
+            Resize(img_size),
             ToTensor()])
 
 
 
     ## test
-    test_img_aug = Compose_own([Resize(size=(288, 384)), ToTensor()])
-    test_mask_aug = Compose_own([Resize(size=(288, 384)), ToTensor()])
+    test_img_aug = Compose_own([Resize(size=img_size), ToTensor()])
+    test_mask_aug = Compose_own([Resize(size=img_size), ToTensor()])
 
     train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
