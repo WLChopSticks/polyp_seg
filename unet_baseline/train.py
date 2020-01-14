@@ -14,7 +14,7 @@ from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizonta
     Normalize, RandomResizedCrop, RandomOrder, RandomApply, Compose, RandomVerticalFlip, RandomChoice, RandomGrayscale,\
     RandomSizedCrop
 from datasets_own import poly_seg, Compose_own
-from models import UNet, fcn
+from models import UNet, fcn, unet_plus
 from models.deeplab3_plus.deeplab import *
 from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss
 from datetime import datetime
@@ -22,14 +22,14 @@ from datetime import datetime
 def parse_args():
     parser = argparse.ArgumentParser(description='Segmeantation for polyp',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--model_name', default='deeplabV3+', type=str, help='unet, fcn, deeplabV3+')
+    parser.add_argument('--model_name', default='unet_plus', type=str, help='unet,unet_plus，fcn, deeplabV3+')
     parser.add_argument('--fold_num', default='0', type=str, help='fold number')
     parser.add_argument('--train_root', default=r'', type=str, help='train dataset absolute path')
     parser.add_argument('--test_root', default=r'', type=str, help='test or validation dataset absolute path')
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
-    parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='init')
+    parser.add_argument('--event_prefix', default='unet_plus', type=str, help='tensorboard logdir prefix')
+    parser.add_argument('--tensorboard_name', default='init3')
     parser.add_argument('--batch_size', default=4, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
@@ -40,10 +40,10 @@ def parse_args():
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
     parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
-    parser.add_argument('--params_name', default='run1.pkl')
+    parser.add_argument('--params_name', default='run0.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
-    parser.add_argument('--style', default='', help='none or aug')
+    parser.add_argument('--style', default='aug', help='none or aug')
     args = parser.parse_args()
     return args
 
@@ -59,6 +59,8 @@ def build_model(model_name, num_classes):
                         output_stride=16,
                         sync_bn=True,
                         freeze_bn=False)
+    elif model_name == 'unet_plus':
+        net = unet_plus.NestedUNet(input_channels=3,output_channels=num_classes, deepsupervision=False)
     else:
         print('wait a minute')
     return net
@@ -132,8 +134,7 @@ def Train(train_root, train_csv, test_root, test_csv):
             RandomAffine(90, shear=45),
             RandomRotation(90),
             RandomHorizontalFlip(),
-            RandomVerticalFlip(),
-            ColorJitter(brightness=0.1),
+            ColorJitter(brightness=0.05),
             Resize(img_size),
             ToTensor()])
 
@@ -142,7 +143,6 @@ def Train(train_root, train_csv, test_root, test_csv):
             RandomRotation(90),
             RandomHorizontalFlip(),
             # ColorJitter(brightness=0.05),
-            RandomVerticalFlip(),
             Resize(img_size),
             ToTensor()])
     else:

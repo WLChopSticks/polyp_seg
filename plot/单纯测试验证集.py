@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import torch
 from datasets_own import poly_seg, Compose_own
-from models import UNet
+from models import UNet, unet_plus
 from models.deeplab3_plus.deeplab import *
 from PIL import Image
 
@@ -20,11 +20,13 @@ def validate(val_csv_path, dataset_root, checkpoint_path):
     checkpoint = torch.load(checkpoint_path)
     # model = UNet(colordim=3, n_classes=2)
 
-    model = DeepLab(num_classes=2,
-                    backbone='resnet',
-                    output_stride=16,
-                    sync_bn=True,
-                    freeze_bn=False)
+    # model = DeepLab(num_classes=2,
+    #                 backbone='resnet',
+    #                 output_stride=16,
+    #                 sync_bn=True,
+    #                 freeze_bn=False)
+
+    model = unet_plus.NestedUNet(input_channels=3, output_channels=2, deepsupervision=False)
     model.load_state_dict(checkpoint['net'])
     val_dataset = poly_seg(root=dataset_root, csv_file=val_csv_path, img_transform=test_img_aug, mask_transform=test_mask_aug)
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=True, num_workers=0)
@@ -139,7 +141,7 @@ def validate(val_csv_path, dataset_root, checkpoint_path):
 img_size = 256
 dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
 val_csv_path = [os.path.join(sys.path[0],'../data/fixed-csv/test.csv')]
-checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/deeplabV3+/0run1.pkl')]
+checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/unet_plus/0run0.pkl')]
 dice = []
 for i, j in zip(val_csv_path, checkpoint_path):
     dice.append(validate(i, dataset_root, j))
