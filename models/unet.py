@@ -19,7 +19,7 @@ class UNet_down_block(nn.Module):
         x = self.relu(self.bn2(self.conv2(x)))
         return x
 
-def UNet_up_conv(input_channel, prev_channel, learned_bilinear=True):
+def UNet_up_conv(input_channel, prev_channel, learned_bilinear=False):
 
     if learned_bilinear:
         return nn.ConvTranspose2d(input_channel, prev_channel, kernel_size=2, stride=2)

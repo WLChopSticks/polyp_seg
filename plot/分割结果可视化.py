@@ -5,6 +5,7 @@ import pandas as pd
 from torchvision.transforms import Resize, ToTensor, ToPILImage, Compose
 from PIL import Image
 from models.unet import UNet
+from models.deeplab3_plus.deeplab import *
 from matplotlib import pyplot as plt
 import cv2
 import sys
@@ -94,17 +95,22 @@ def draw_on_image(gt, result, image, savepath, show=False):
 # checkpoint = r'E:\code\polyp_seg\unet_baseline\checkpoint\0unet_params.pkl'
 dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
 val_csv_path = os.path.join(sys.path[0],'../data/fixed-csv/test.csv')
-checkpoint = os.path.join(sys.path[0],'../unet_baseline/checkpoint/0unet_params.pkl')
+checkpoint = os.path.join(sys.path[0],'../unet_baseline/checkpoint/deeplabV3+/0run1.pkl')
 savedir = os.path.join(sys.path[0],'results')
 test_index = 100
 img_size_to_net = 256
-test_img_aug = Compose([Resize(size=(img_size_to_net, img_size_to_net)), ToTensor()])
-test_mask_aug = Compose([Resize(size=(img_size_to_net, img_size_to_net)), ToTensor()])
+test_img_aug = Compose([Resize(size=(288, 384)), ToTensor()])
+test_mask_aug = Compose([Resize(size=(288, 384)), ToTensor()])
 
 # 加载参数
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 checkpoint = torch.load(checkpoint)
-model = UNet(colordim=3, n_classes=2)
+# model = UNet(colordim=3, n_classes=2)
+model = DeepLab(num_classes=2,
+                        backbone='resnet',
+                        output_stride=16,
+                        sync_bn=True,
+                        freeze_bn=False)
 model.load_state_dict(checkpoint['net'])
 model.to(device)
 dataframe = pd.read_csv(val_csv_path)
