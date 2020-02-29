@@ -2,6 +2,8 @@ import numbers
 import random
 
 from PIL import Image, ImageOps
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import numpy as np
 import torch
 from torchvision.transforms import ColorJitter

@@ -51,11 +51,12 @@ def dice_fn(inputs, targets, threshold=0.5):
     inputs_obj[inputs_obj>=threshold] = 1
     inputs_obj[inputs_obj<threshold] = 0
     dice = 0.
+    smooth = 1
     for input_, target_ in zip(inputs_obj, targets):
         iflat = input_.view(-1).float()
         tflat = target_.view(-1).float()
         intersection = (iflat * tflat).sum()
-        dice_single = ((2. * intersection) / (iflat.sum() + tflat.sum()))
+        dice_single = ((2. * intersection + smooth) / (iflat.sum() + tflat.sum() + smooth))
         dice += dice_single
     return dice
 

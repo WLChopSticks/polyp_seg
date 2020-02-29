@@ -18,6 +18,7 @@ from models import UNet, fcn, unet_plus
 from models.deeplab3_plus.deeplab import *
 from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss
 from datetime import datetime
+import plot.单纯测试验证集 as rstest
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Segmeantation for polyp',
@@ -29,8 +30,8 @@ def parse_args():
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='rectanglemask')
-    parser.add_argument('--batch_size', default=4, type=int, help='batch_size')
+    parser.add_argument('--tensorboard_name', default='rectanglemask_init')
+    parser.add_argument('--batch_size', default=2, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
@@ -163,9 +164,9 @@ def Train(train_root, train_csv, test_root, test_csv):
     train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                              num_workers=0, shuffle=True)
+                              num_workers=0, shuffle=True, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size,
-                             num_workers=0, shuffle=True)
+                             num_workers=0, shuffle=True, drop_last=True)
 
     # loss function, optimizer and scheduler
     if args.loss == 'ce':
@@ -241,8 +242,8 @@ def Train(train_root, train_csv, test_root, test_csv):
             logging.info('Checkpoint Saving...')
 
             save_model = net
-            if torch.cuda.device_count() > 1:
-                save_model = list(net.children())[0]
+            # if torch.cuda.device_count() > 1:
+            #     save_model = list(net.children())[0]
             state = {
                 'net': save_model.state_dict(),
                 'loss': test_loss_epoch,
@@ -279,7 +280,7 @@ if __name__ == "__main__":
     if len(train_root) == 0:
         train_root = os.path.join(sys.path[0], '../data/CVC-912/train')
     if len(test_root) == 0:
-        test_root = os.path.join(sys.path[0], '../data/CVC-912/val')
+        test_root = os.path.join(sys.path[0], '../data/CVC-912/train')
     if len(train_csv) == 0:
         train_csv = os.path.join(sys.path[0], '../data/fixed-csv/train.csv')
     if len(test_csv) == 0:
@@ -287,3 +288,14 @@ if __name__ == "__main__":
 
 
     Train(train_root, train_csv, test_root, test_csv)
+
+    # test
+    dataset_root = os.path.join(sys.path[0], '../data/CVC-912/test')
+    val_csv_path = [os.path.join(sys.path[0], '../data/fixed-csv/test.csv')]
+    checkpoint_path = [os.path.join(args.checkpoint, args.model_name, args.fold_num + args.params_name)]
+    print('checkpoint_path: '+checkpoint_path[0])
+    dice = []
+    for i, j in zip(val_csv_path, checkpoint_path):
+        dice.append(rstest.validate(i, dataset_root, j))
+    print(dice)
+

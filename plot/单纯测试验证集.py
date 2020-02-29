@@ -137,12 +137,12 @@ def validate(val_csv_path, dataset_root, checkpoint_path):
 
     return val_dice / len(val_dataloader.dataset)
 
-
-img_size = 256
-dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
-val_csv_path = [os.path.join(sys.path[0],'../data/fixed-csv/test.csv')]
-checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/deeplabV3+/0run1.pkl')]
-dice = []
-for i, j in zip(val_csv_path, checkpoint_path):
-    dice.append(validate(i, dataset_root, j))
-print(dice)
+if __name__ == "__main__":
+    img_size = 256
+    dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
+    val_csv_path = [os.path.join(sys.path[0],'../data/fixed-csv/test.csv')]
+    checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/deeplabV3+/0run0.pkl')]
+    dice = []
+    for i, j in zip(val_csv_path, checkpoint_path):
+        dice.append(validate(i, dataset_root, j))
+    print(dice)
