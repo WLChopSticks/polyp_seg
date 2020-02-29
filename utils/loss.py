@@ -58,6 +58,10 @@ class UnionLossWithCrossEntropyAndSize(nn.Module):
 
         return loss_crossEntropy + loss_size
 # ######## ------ Size loss function  (naive way) ---------- ###########
+def simplex(t: Tensor, axis=1) -> bool:
+    _sum = cast(Tensor, t.sum(axis).type(torch.float32))
+    _ones = torch.ones_like(_sum, dtype=torch.float32)
+    return torch.allclose(_sum, _ones)
 # --- This function will push the prediction to be close ot sizeGT ---#
 class Size_Loss_naive():
     """
@@ -70,24 +74,27 @@ class Size_Loss_naive():
         print(f"Initialized {self.__class__.__name__} with {kwargs}")
 
     def __call__(self, inputs, targets):
-        print(inputs)
-        inputs = F.log_softmax(inputs, dim=1)
-        print(inputs)
-        assert self.simplex(inputs)
+        inputs = F.softmax(inputs, dim=1)
+        assert simplex(inputs)
 
         _, _, h, w = inputs.shape
-        pred_size = einsum("bcwh->bc", input)[:, 1]
+        a = inputs.sum(dim = [2,3])
+        #a = a.sum(dim = 2)
+        pred_size = a[:,1]
+        #pred_size = einsum("bcwh->bc", input)
         target_size = 7845
 
+        target_size = targets.sum(dim=[1,2],dtype=torch.float32)
+        #c = c.sum(dim=2)
+
+
         loss = (pred_size - target_size) ** 2
-        loss = loss / (w * h)
+        loss = loss.sum() / (w * h)
 
-        return loss / 100
+        return 0
+        #return loss / 10000
 
-    def simplex(t: Tensor, axis=1) -> bool:
-        _sum = cast(Tensor, t.sum(axis).type(torch.float32))
-        _ones = torch.ones_like(_sum, dtype=torch.float32)
-        return torch.allclose(_sum, _ones)
+
 
 
 
