@@ -164,9 +164,9 @@ def Train(train_root, train_csv, test_root, test_csv):
     train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                              num_workers=0, shuffle=True, drop_last=True)
+                              num_workers=8, shuffle=True, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size,
-                             num_workers=0, shuffle=True, drop_last=True)
+                             num_workers=8, shuffle=True, drop_last=True)
 
     # loss function, optimizer and scheduler
     if args.loss == 'ce':
