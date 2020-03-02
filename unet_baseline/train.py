@@ -45,6 +45,7 @@ def parse_args():
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
     parser.add_argument('--style', default='aug', help='none or aug')
+    parser.add_argument('--send_result', default=False, help='send test result or not')
     args = parser.parse_args()
     return args
 
@@ -294,36 +295,36 @@ if __name__ == "__main__":
     # test
     dataset_root = os.path.join(sys.path[0], '../data/CVC-912/test')
     val_csv_path = os.path.join(sys.path[0], '../data/fixed-csv/test.csv')
-    checkpoint_path = os.path.join(sys.path[0], '../unet_baseline/checkpoint/deeplabV3+/0run0.pkl')
+    checkpoint_path = os.path.join(sys.path[0], '../unet_baseline/checkpoint/deeplabV3+',args.fold_num+args.params_name)
     result =rstest.validate(val_csv_path, dataset_root, checkpoint_path)
     print(result)
 
     #send result to wechat
     import requests
+    if args.send_result:
+        url = "https://sc.ftqq.com/SCU28703Te109f3ff3fede315f4017d79786274ab5b35cf275612b.send?"
+        url2 = "https://sc.ftqq.com/SCU87403Tdd9ec9b4572930aee59a144326d0f5e15e5c9a4163f6a.send?"
 
-    url = "https://sc.ftqq.com/SCU28703Te109f3ff3fede315f4017d79786274ab5b35cf275612b.send?"
-    url2 = "https://sc.ftqq.com/SCU87403Tdd9ec9b4572930aee59a144326d0f5e15e5c9a4163f6a.send?"
+        result_str = 'val_dice: {0}\n\n' \
+                     'Recall: {1}\n\n' \
+                     'Specificity: {2}\n\n' \
+                     'Precision: {3}\n\n' \
+                     'Dice: {4}\n\n' \
+                     'F2: {5}\n\n' \
+                     'IoU_p: {6}\n\n' \
+                     'IoU_b: {7}\n\n' \
+                     'IoU_m: {8}\n\n' \
+                     'Acc: {9}\n\n'.format(result['val_dice'], result['Recall'], result['Specificity']
+                                           , result['Precision'], result['Dice'], result['F2'], result['IoU_p'],
+                                           result['IoU_b'], result['IoU_m'], result['Acc'], )
 
-    result_str = 'val_dice: {0}\n\n' \
-                 'Recall: {1}\n\n' \
-                 'Specificity: {2}\n\n' \
-                 'Precision: {3}\n\n' \
-                 'Dice: {4}\n\n' \
-                 'F2: {5}\n\n' \
-                 'IoU_p: {6}\n\n' \
-                 'IoU_b: {7}\n\n' \
-                 'IoU_m: {8}\n\n' \
-                 'Acc: {9}\n\n'.format(result['val_dice'], result['Recall'], result['Specificity']
-                                       , result['Precision'], result['Dice'], result['F2'], result['IoU_p'],
-                                       result['IoU_b'], result['IoU_m'], result['Acc'], )
+        params = {"text": 'linux: ' + args.tensorboard_name,
+                  'desp': result_str + '\n\nthe infomation is to wl'}
 
-    params = {"text": 'linux: ' + 'test',
-              'desp': result_str + '\n\nthe infomation is to wl'}
-
-    res = requests.get(url=url, params=params)
-    params2 = {"text": 'ubuntu: ' + 'test',
-               'desp': result_str + '\n\nthis message is to ljx'}
-    res2 = requests.get(url=url2, params=params2)
-    print(res.text)
-    print(res2.text)
+        res = requests.get(url=url, params=params)
+        params2 = {"text": 'ubuntu: ' + 'test',
+                   'desp': result_str + '\n\nthis message is to ljx'}
+        res2 = requests.get(url=url2, params=params2)
+        print(res.text)
+        print(res2.text)
 
