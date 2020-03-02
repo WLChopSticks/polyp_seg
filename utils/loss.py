@@ -57,6 +57,7 @@ class UnionLossWithCrossEntropyAndSize(nn.Module):
         loss_size = self.sizeLoss(inputs, targets)
 
         return loss_crossEntropy + loss_size
+
 # ######## ------ Size loss function  (naive way) ---------- ###########
 def simplex(t: Tensor, axis=1) -> bool:
     _sum = cast(Tensor, t.sum(axis).type(torch.float32))
@@ -78,21 +79,17 @@ class Size_Loss_naive():
         assert simplex(inputs)
 
         _, _, h, w = inputs.shape
-        a = inputs.sum(dim = [2,3])
-        #a = a.sum(dim = 2)
-        pred_size = a[:,1]
-        #pred_size = einsum("bcwh->bc", input)
-        target_size = 7845
+        preds = inputs.sum(dim = [2,3])
+        pred_size = preds[:,1]#get the object channel
+
 
         target_size = targets.sum(dim=[1,2],dtype=torch.float32)
-        #c = c.sum(dim=2)
-
 
         loss = (pred_size - target_size) ** 2
         loss = loss.sum() / (w * h)
 
-        return 0
-        #return loss / 10000
+        #return 0
+        return loss / 10000
 
 
 

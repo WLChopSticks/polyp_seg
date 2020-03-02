@@ -1,5 +1,5 @@
 import sys
-sys.path.extend(['../', '../../'])
+sys.path.extend(['../', '../../','../models/deeplab3_plus'])
 import os, time, argparse
 import logging
 import torch
