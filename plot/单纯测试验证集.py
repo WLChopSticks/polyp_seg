@@ -135,14 +135,53 @@ def validate(val_csv_path, dataset_root, checkpoint_path):
     print('IoU_m: %f ' % IoU_m)
     print('Acc: %f ' % Acc)
 
-    return val_dice / len(val_dataloader.dataset)
+    result = {'val_dice' : str(val_dice / len(val_dataloader.dataset)),
+              'Recall'   : str(Rec),
+              'Specificity': str(Spec),
+              'Precision' : str(Prec),
+              'Dice' : str(Dice),
+              'F2' : str(F2),
+              'IoU_p' : str(IoU_p),
+              'IoU_b' : str(IoU_b),
+              'IoU_m' : str(IoU_m),
+              'Acc' : str(Acc),}
+
+    return result
 
 if __name__ == "__main__":
-    img_size = 256
+
     dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
-    val_csv_path = [os.path.join(sys.path[0],'../data/fixed-csv/test.csv')]
-    checkpoint_path = [os.path.join(sys.path[0],'../unet_baseline/checkpoint/deeplabV3+/0run0.pkl')]
-    dice = []
-    for i, j in zip(val_csv_path, checkpoint_path):
-        dice.append(validate(i, dataset_root, j))
-    print(dice)
+    val_csv_path = os.path.join(sys.path[0],'../data/fixed-csv/test.csv')
+    checkpoint_path = os.path.join(sys.path[0],'../unet_baseline/checkpoint/deeplabV3+/0run0.pkl')
+    result = validate(val_csv_path, dataset_root, checkpoint_path)
+    print(result)
+    # send result to wechat
+    import requests
+
+    url = "https://sc.ftqq.com/SCU28703Te109f3ff3fede315f4017d79786274ab5b35cf275612b.send?"
+    url2 = "https://sc.ftqq.com/SCU87403Tdd9ec9b4572930aee59a144326d0f5e15e5c9a4163f6a.send?"
+
+    result_str = 'val_dice: {0}\n\n' \
+                 'Recall: {1}\n\n' \
+                 'Specificity: {2}\n\n' \
+                 'Precision: {3}\n\n' \
+                 'Dice: {4}\n\n' \
+                 'F2: {5}\n\n' \
+                 'IoU_p: {6}\n\n' \
+                 'IoU_b: {7}\n\n' \
+                 'IoU_m: {8}\n\n' \
+                 'Acc: {9}\n\n'.format(result['val_dice'],result['Recall'],result['Specificity']
+                                     ,result['Precision'],result['Dice'],result['F2'],result['IoU_p'],
+                                     result['IoU_b'],result['IoU_m'],result['Acc'],)
+
+    params = {"text": 'linux: ' + 'test',
+              'desp': result_str + '\n\nthe infomation is to wl'}
+
+    res = requests.get(url=url, params=params)
+    params2 = {"text": 'ubuntu: ' + 'test',
+              'desp': result_str + '\n\nthis message is to ljx'}
+    res2 = requests.get(url=url2, params=params2)
+    print(res.text)
+    print(res2.text)
+
+

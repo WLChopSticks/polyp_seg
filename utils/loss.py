@@ -84,6 +84,8 @@ class Size_Loss_naive():
 
 
         target_size = targets.sum(dim=[1,2],dtype=torch.float32)
+        #ellipse size
+        target_size *= 0.785
 
         loss = (pred_size - target_size) ** 2
         loss = loss.sum() / (w * h)

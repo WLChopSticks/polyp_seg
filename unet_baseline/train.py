@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='rectanglemask_size_loss')
+    parser.add_argument('--tensorboard_name', default='rectangle_size_loss')
     parser.add_argument('--batch_size', default=2, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
@@ -293,11 +293,37 @@ if __name__ == "__main__":
 
     # test
     dataset_root = os.path.join(sys.path[0], '../data/CVC-912/test')
-    val_csv_path = [os.path.join(sys.path[0], '../data/fixed-csv/test.csv')]
-    checkpoint_path = [os.path.join(args.checkpoint, args.model_name, args.fold_num + args.params_name)]
-    print('checkpoint_path: '+checkpoint_path[0])
-    dice = []
-    for i, j in zip(val_csv_path, checkpoint_path):
-        dice.append(rstest.validate(i, dataset_root, j))
-    print(dice)
+    val_csv_path = os.path.join(sys.path[0], '../data/fixed-csv/test.csv')
+    checkpoint_path = os.path.join(sys.path[0], '../unet_baseline/checkpoint/deeplabV3+/0run0.pkl')
+    result =rstest.validate(val_csv_path, dataset_root, checkpoint_path)
+    print(result)
+
+    #send result to wechat
+    import requests
+
+    url = "https://sc.ftqq.com/SCU28703Te109f3ff3fede315f4017d79786274ab5b35cf275612b.send?"
+    url2 = "https://sc.ftqq.com/SCU87403Tdd9ec9b4572930aee59a144326d0f5e15e5c9a4163f6a.send?"
+
+    result_str = 'val_dice: {0}\n\n' \
+                 'Recall: {1}\n\n' \
+                 'Specificity: {2}\n\n' \
+                 'Precision: {3}\n\n' \
+                 'Dice: {4}\n\n' \
+                 'F2: {5}\n\n' \
+                 'IoU_p: {6}\n\n' \
+                 'IoU_b: {7}\n\n' \
+                 'IoU_m: {8}\n\n' \
+                 'Acc: {9}\n\n'.format(result['val_dice'], result['Recall'], result['Specificity']
+                                       , result['Precision'], result['Dice'], result['F2'], result['IoU_p'],
+                                       result['IoU_b'], result['IoU_m'], result['Acc'], )
+
+    params = {"text": 'linux: ' + 'test',
+              'desp': result_str + '\n\nthe infomation is to wl'}
+
+    res = requests.get(url=url, params=params)
+    params2 = {"text": 'ubuntu: ' + 'test',
+               'desp': result_str + '\n\nthis message is to ljx'}
+    res2 = requests.get(url=url2, params=params2)
+    print(res.text)
+    print(res2.text)
 
