@@ -36,7 +36,9 @@ def parse_args():
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--num_epoch', default=100, type=int, help='num epoch')
-    parser.add_argument('--loss', default='ce', type=str, help='ce, union, ce+size')
+    parser.add_argument('--ite_start_time', default=0, type=int, help='iteration start epoch')
+    parser.add_argument('--ite_end_time', default=1, type=int, help='iteration end times')
+    parser.add_argument('--loss', default='ce+size', type=str, help='ce, union, ce+size')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
     parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
@@ -67,7 +69,7 @@ def build_model(model_name, num_classes):
         print('wait a minute')
     return net
 
-def Train(train_root, train_csv, test_root, test_csv):
+def Train(train_root, train_csv, test_root, test_csv, iter_time):
     # record
     localtime = time.asctime(time.localtime(time.time()))
     logging.info('Seg polyp (Data: %s)' % localtime)
@@ -81,6 +83,7 @@ def Train(train_root, train_csv, test_root, test_csv):
     logging.info('gpu order: %s' % args.gpu_order)
     logging.info('batch size: %d' % args.batch_size)
     logging.info('num epoch: %d' % args.num_epoch)
+    logging.info('ite_time: %d' % args.ite_time)
     logging.info('learing rate: %f' % args.lr)
     logging.info('loss: %s' % args.loss)
     logging.info('img_size: %s' % str(args.img_size))
@@ -162,7 +165,7 @@ def Train(train_root, train_csv, test_root, test_csv):
     test_img_aug = Compose_own([Resize(size=img_size), ToTensor()])
     test_mask_aug = Compose_own([Resize(size=img_size), ToTensor()])
 
-    train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug)
+    train_dataset = poly_seg(root=train_root, csv_file=train_csv, img_transform=train_img_aug, mask_transform=train_mask_aug, iter_time=iter_time)
     test_dataset = poly_seg(root=test_root, csv_file=test_csv, img_transform=test_img_aug, mask_transform=test_mask_aug)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
                               num_workers=8, shuffle=True, drop_last=True)
@@ -256,6 +259,7 @@ def Train(train_root, train_csv, test_root, test_csv):
             torch.save(state, checkpoint_name)
             best_loss = test_loss_epoch
     writer.close()
+    return net
 
 args = parse_args()
 if not os.path.exists(args.checkpoint):
@@ -268,6 +272,10 @@ logging.basicConfig(level=logging.INFO,
                         logging.StreamHandler(),
                         logging.FileHandler(logging_save)
                     ])
+
+
+
+
 
 if __name__ == "__main__":
     TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
@@ -289,8 +297,16 @@ if __name__ == "__main__":
     if len(test_csv) == 0:
         test_csv = os.path.join(sys.path[0], '../data/fixed-csv/val.csv')
 
+    #all train data csv, including train and val
+    train_data_csv = os.path.join(sys.path[0], '../data/fixed-csv/train_data.csv')
 
-    Train(train_root, train_csv, test_root, test_csv)
+    start = args.ite_start_time
+    if start != 0: args.resume = 1
+    while start < args.ite_end_time:
+        model = Train(train_root, train_csv, test_root, test_csv)
+        from .update_mask import updateMask
+        updateMask(train_root,train_csv,'../data/CVC-912/train/masks',model, start)
+        start += 1
 
     # test
     dataset_root = os.path.join(sys.path[0], '../data/CVC-912/test')

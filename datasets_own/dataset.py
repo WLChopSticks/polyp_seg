@@ -8,19 +8,23 @@ import cv2
 
 class poly_seg(Dataset):
 
-    def __init__(self, root, csv_file, img_transform=None, mask_transform=None):
+    def __init__(self, root, csv_file, img_transform=None, mask_transform=None, iter_time=None):
         self.root = root
         img_mask = pd.read_csv(csv_file)
         self.imgs = img_mask['image'].values.tolist()
         self.masks = img_mask['mask'].values.tolist()
         self.img_transform = img_transform
         self.mask_transform = mask_transform
+        self.iter_time = iter_time
 
     def __getitem__(self, idx):
         img = Image.open(os.path.join(self.root, 'images', self.imgs[idx]))
         if img.mode != 'RGB':
             img = img.convert('RGB')
-        mask = Image.open(os.path.join(self.root, 'masks', self.masks[idx]))
+        if self.iter_time is not None:
+            mask = Image.open(os.path.join(self.root, 'masks', self.iter_time, self.masks[idx]))
+        else:
+            mask = Image.open(os.path.join(self.root, 'masks', self.masks[idx]))
         if mask.mode != 'L':
             mask = mask.convert('L')
         mask_arr = np.array(mask)
