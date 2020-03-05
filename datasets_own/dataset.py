@@ -21,8 +21,8 @@ class poly_seg(Dataset):
         img = Image.open(os.path.join(self.root, 'images', self.imgs[idx]))
         if img.mode != 'RGB':
             img = img.convert('RGB')
-        if self.iter_time is not None:
-            mask = Image.open(os.path.join(self.root, 'masks', self.iter_time, self.masks[idx]))
+        if self.iter_time is not None and self.iter_time != 0:
+            mask = Image.open(os.path.join(self.root, 'masks', str(self.iter_time), self.masks[idx]))
         else:
             mask = Image.open(os.path.join(self.root, 'masks', self.masks[idx]))
         if mask.mode != 'L':

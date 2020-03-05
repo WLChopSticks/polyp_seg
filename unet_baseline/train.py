@@ -19,6 +19,7 @@ from models.deeplab3_plus.deeplab import *
 from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss, UnionLossWithCrossEntropyAndSize
 from datetime import datetime
 import plot.单纯测试验证集 as rstest
+import update_mask
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Segmeantation for polyp',
@@ -37,7 +38,7 @@ def parse_args():
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--num_epoch', default=100, type=int, help='num epoch')
     parser.add_argument('--ite_start_time', default=0, type=int, help='iteration start epoch')
-    parser.add_argument('--ite_end_time', default=1, type=int, help='iteration end times')
+    parser.add_argument('--ite_end_time', default=10, type=int, help='iteration end times')
     parser.add_argument('--loss', default='ce+size', type=str, help='ce, union, ce+size')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
@@ -83,7 +84,8 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time):
     logging.info('gpu order: %s' % args.gpu_order)
     logging.info('batch size: %d' % args.batch_size)
     logging.info('num epoch: %d' % args.num_epoch)
-    logging.info('ite_time: %d' % args.ite_time)
+    logging.info('ite_start_time: %d' % args.ite_start_time)
+    logging.info('ite_end_time: %d' % args.ite_end_time)
     logging.info('learing rate: %f' % args.lr)
     logging.info('loss: %s' % args.loss)
     logging.info('img_size: %s' % str(args.img_size))
@@ -303,9 +305,9 @@ if __name__ == "__main__":
     start = args.ite_start_time
     if start != 0: args.resume = 1
     while start < args.ite_end_time:
-        model = Train(train_root, train_csv, test_root, test_csv)
-        from .update_mask import updateMask
-        updateMask(train_root,train_csv,'../data/CVC-912/train/masks',model, start)
+        model = Train(train_root, train_csv, test_root, test_csv,start)
+
+        update_mask.updateMask(train_root,train_data_csv,'../data/CVC-912/train/masks',model, start)
         start += 1
 
     # test
