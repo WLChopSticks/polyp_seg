@@ -16,7 +16,7 @@ from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizonta
 from datasets_own import poly_seg, Compose_own
 from models import UNet, fcn, unet_plus
 from models.deeplab3_plus.deeplab import *
-from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss, UnionLossWithCrossEntropyAndSize
+from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss, UnionLossWithCrossEntropyAndSize, BoundaryLoss
 from datetime import datetime
 import plot.单纯测试验证集 as rstest
 
@@ -36,10 +36,10 @@ def parse_args():
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--num_epoch', default=100, type=int, help='num epoch')
-    parser.add_argument('--loss', default='ce+size', type=str, help='ce, union, ce+size')
+    parser.add_argument('--loss', default='boundary', type=str, help='ce, union, ce+size, boundary')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
-    parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
+    parser.add_argument('--resume', default=1, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
     parser.add_argument('--params_name', default='run0.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
@@ -176,6 +176,9 @@ def Train(train_root, train_csv, test_root, test_csv):
         criterion = UnionLossWithCrossEntropyAndDiceLoss().to(device)
     elif args.loss == 'ce+size':
         criterion = UnionLossWithCrossEntropyAndSize().to(device)
+    elif args.loss == 'boundary':
+        criterion = CrossEntropyLoss2d().to(device)
+        boundary_criterion = BoundaryLoss().to(device)
     else:
         print('Do not have this loss')
     optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
@@ -201,6 +204,11 @@ def Train(train_root, train_csv, test_root, test_csv):
             if args.loss == 'ce-dice':
                 # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
                 pass
+            elif args.loss == 'boundary':
+                if epoch <= 20:
+                    loss = criterion(outputs, targets)
+                else:
+                    loss = criterion(outputs, targets) + boundary_criterion(inputs, outputs, targets).to(device)
             else:
                 loss = criterion(outputs, targets)
             loss.backward()
@@ -225,6 +233,11 @@ def Train(train_root, train_csv, test_root, test_csv):
                 if args.loss == 'ce-dice':
                     # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
                     pass
+                elif args.loss == 'boundary':
+                    if epoch <= 20:
+                        loss = criterion(outputs, targets)
+                    else:
+                        loss = criterion(outputs, targets) + boundary_criterion(inputs, outputs, targets).to(device)
                 else:
                     loss = criterion(outputs, targets)
                 dice = dice_fn(outputs, targets)
