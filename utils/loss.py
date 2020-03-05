@@ -4,8 +4,6 @@ import torch.nn.functional as F
 from sklearn.metrics import jaccard_similarity_score
 import numpy as np
 from typing import cast
-import cv2
-from utils.capture_boundary import get_boundary
 
 class UnionLossWithCrossEntropyAndDiceLoss(nn.Module):
     def __init__(self, weight=None, size_average=True, ignore_index=255):
@@ -59,7 +57,7 @@ class UnionLossWithCrossEntropyAndSize(nn.Module):
         loss_crossEntropy = self.crossEntropyLoss(inputs, targets)
         loss_size = self.sizeLoss(inputs, targets)
         loss_size = torch.log10(loss_size)
-        return loss_crossEntropy + 0.5 * loss_size
+        return loss_crossEntropy + 0.0005 * loss_size
 
 # ######## ------ Size loss function  (naive way) ---------- ###########
 def simplex(t: Tensor, axis=1) -> bool:
@@ -95,20 +93,6 @@ class Size_Loss_naive():
 
         #return 0
         return loss
-
-class BoundaryLoss(nn.Module):
-    def __init__(self, weight=None, size_average=True, ignore_index=255):
-        super(BoundaryLoss, self).__init__()
-        self.celoss = nn.NLLLoss(weight, size_average, ignore_index)
-
-    def forward(self,images, inputs, targets, threshold=0.5):
-        inputs = F.softmax(inputs, dim=1)
-
-        input_boundary, target_boundary = get_boundary(images, inputs, targets, threshold)
-        loss = self.celoss(input_boundary, target_boundary)
-        print(loss)
-        return loss
-
 
 def dice_fn(inputs, targets, threshold=0.5):
     inputs = F.softmax(inputs, dim=1)
