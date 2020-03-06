@@ -101,7 +101,7 @@ def updateMask(train_image_dir, train_csv_path, mask_dir, model, index):
         new_mask_size = new_mask.sum()
         origin_mask_size = np.array(gt).sum()
         ratio = (origin_mask_size-new_mask_size) / origin_mask_size
-        if new_mask_size == 0 or ratio < 50:
+        if new_mask_size == 0 or ratio < 0.5:
             new_mask = np.array(gt)
 
         cv2.imwrite('new_out2.jpg', new_mask)
