@@ -94,7 +94,7 @@ def updateMask(train_image_dir, train_csv_path, mask_dir, model, index):
             overlap = obj_tem + output
             overlap[overlap > 255] = 255
             total_size = overlap.sum()
-            if total_size - output.sum() <= 0:
+            if total_size - output.sum() <= 255 * 100:
                 new_mask = new_mask + obj_tem
         cv2.imwrite('new_out.jpg', new_mask)
         #如果新分割出的结果太小或者没有， 则用上一次的mask

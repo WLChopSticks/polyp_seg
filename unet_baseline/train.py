@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
     parser.add_argument('--tensorboard_name', default='iter')
-    parser.add_argument('--batch_size', default=4, type=int, help='batch_size')
+    parser.add_argument('--batch_size', default=2, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
@@ -281,12 +281,7 @@ logging.basicConfig(level=logging.INFO,
 
 
 if __name__ == "__main__":
-    TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
-    if len(args.tensorboard_name) == 0:
-        log_dir = os.path.join('./Graph', args.event_prefix, TIMESTAMP)
-    else:
-        log_dir = os.path.join('./Graph', args.event_prefix, args.tensorboard_name)
-    writer = SummaryWriter(log_dir)
+
     train_root = args.train_root
     train_csv = args.train_csv
     test_root = args.test_root
@@ -306,6 +301,12 @@ if __name__ == "__main__":
     start = args.ite_start_time
     if start != 0: args.resume = 1
     while start < args.ite_end_time:
+        TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
+        if len(args.tensorboard_name) == 0:
+            log_dir = os.path.join('./Graph', args.event_prefix, TIMESTAMP)
+        else:
+            log_dir = os.path.join('./Graph', args.event_prefix, args.tensorboard_name, str(start))
+        writer = SummaryWriter(log_dir)
         checkpoint_path = os.path.join(args.checkpoint, args.model_name)
         if not os.path.exists(checkpoint_path):
             os.mkdir(checkpoint_path)
@@ -319,6 +320,7 @@ if __name__ == "__main__":
         dataset_root = os.path.join(sys.path[0], '../data/CVC-912/test')
         val_csv_path = os.path.join(sys.path[0], '../data/fixed-csv/test.csv')
         checkpoint_path = os.path.join(sys.path[0], '../unet_baseline/checkpoint/deeplabV3+',args.fold_num+args.params_name)
+        checkpoint_path = checkpoint_name
         result =rstest.validate(val_csv_path, dataset_root, checkpoint_path)
         print(result)
 
@@ -344,10 +346,10 @@ if __name__ == "__main__":
             params = {"text": 'linux: ' + args.tensorboard_name,
                       'desp': result_str + '\n\nthe infomation is to wl'}
 
-           # res = requests.get(url=url, params=params)
+            res = requests.get(url=url, params=params)
             params2 = {"text": 'ubuntu: ' + 'test',
                        'desp': result_str + '\n\nthis message is to ljx'}
-           # res2 = requests.get(url=url2, params=params2)
-           # print(res.text)
-          #  print(res2.text)
+            # res2 = requests.get(url=url2, params=params2)
+            print(res.text)
+            # print(res2.text)
 
