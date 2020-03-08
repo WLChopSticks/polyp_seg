@@ -11,6 +11,7 @@ from torchvision.transforms import Resize, ToTensor
 import pandas as pd
 from PIL import Image
 from torchvision.transforms import Resize, ToTensor, ToPILImage, Compose
+import os
 
 def updateMask(train_image_dir, train_csv_path, mask_dir, model, index):
     '''
@@ -21,9 +22,11 @@ def updateMask(train_image_dir, train_csv_path, mask_dir, model, index):
     5. 重新开始训练
     '''
     test_img_aug = Compose([Resize(size=(288, 384)), ToTensor()])
-    test_mask_aug = Compose([Resize(size=(288, 384)), ToTensor()])
+    # test_mask_aug = Compose([Resize(size=(288, 384)), ToTensor()])
 
     dataframe = pd.read_csv(train_csv_path)
+    new_mask_dir = os.path.join(train_image_dir, 'masks', str(index + 1))
+
     for j in range(len(dataframe)):
 
         series = dataframe.loc[j]
@@ -34,13 +37,11 @@ def updateMask(train_image_dir, train_csv_path, mask_dir, model, index):
         img = Image.open(image_path)
         if index != 0:
             mask_path = os.path.join(root, 'masks', str(index), gt_name)
-            new_mask_dir = os.path.join(root, 'masks', str(index + 1))
-            new_mask_path = os.path.join(root, 'masks', str(index + 1), gt_name)
+            new_mask_path = os.path.join(new_mask_dir, gt_name)
             gt = Image.open(mask_path)
         else:
             mask_path = os.path.join(root, 'masks', gt_name)
-            new_mask_dir = os.path.join(root, 'masks', str(1))
-            new_mask_path = os.path.join(root, 'masks', str(1), gt_name)
+            new_mask_path = os.path.join(new_mask_dir, gt_name)
             gt = Image.open(mask_path)
         if img.mode != 'RGB':
             img = img.convert('RGB')
@@ -51,35 +52,12 @@ def updateMask(train_image_dir, train_csv_path, mask_dir, model, index):
         gt_arr[gt_arr <= 128] = 0
         gt = Image.fromarray(gt_arr)
 
-        model.eval()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        img_for_net = test_img_aug(img)
-        img_for_net = img_for_net.to(device)
-        img_for_net = img_for_net.sub(0.5).div(0.5)
-
-        img_for_net = img_for_net.unsqueeze(dim=0)
-        predict = model(img_for_net)
-        to_pil = ToPILImage()
-        mask = to_pil(torch.tensor(255 * predict.argmax(dim=1).detach(), dtype=torch.uint8))
-        mask_origin_size = mask.resize(gt.size)
-
-
-        mask = 255 * predict.argmax(dim=1)
-        resize_origin = Compose([Resize(size=gt.size)])
-        #mask = resize_origin(mask)
-        mask = np.array(mask_origin_size)
-        #mask = mask.squeeze(0).cpu().numpy()
-
-        image = cv2.imread(image_path)
-        #image = cv2.resize(image,(288,384))
+        #网络预测mask
+        mask_origin_size =predict_mask_with_net(img, test_img_aug,model)
 
         image = np.array(img)
         output = np.array(mask_origin_size)
-        #如果mask没有分出来， 则用上一次迭代的mask
-        if output.sum() == 0:
-            output = getLastMask(root, gt_name, index)
 
-        #image = input[0].cpu().numpy().astype(np.double).transpose(1, 2, 0)
         new_mask = np.zeros((image.shape[0],image.shape[1]), dtype="long")
         spixels = slic(image, n_segments=300, sigma=5)
 
@@ -94,15 +72,17 @@ def updateMask(train_image_dir, train_csv_path, mask_dir, model, index):
             overlap = obj_tem + output
             overlap[overlap > 255] = 255
             total_size = overlap.sum()
-            if total_size - output.sum() <= 255 * 100:
+            if total_size - output.sum() <= obj_tem.sum() * 0.5:
                 new_mask = new_mask + obj_tem
         cv2.imwrite('new_out.jpg', new_mask)
         #如果新分割出的结果太小或者没有， 则用上一次的mask
         new_mask_size = new_mask.sum()
         origin_mask_size = np.array(gt).sum()
-        ratio = (origin_mask_size-new_mask_size) / origin_mask_size
-        if new_mask_size == 0 or ratio < 0.5:
+        ratio = new_mask_size / origin_mask_size
+        #新的mask为0， 或者mask重叠区域过小或过大 超过30%， 则使用上一轮的mask送入下一轮训练
+        if new_mask_size == 0 or (ratio < 0.7 or ratio > 1.3):
             new_mask = np.array(gt)
+            print('use last mask for next train: ' + new_mask_path)
 
         cv2.imwrite('new_out2.jpg', new_mask)
         if not os.path.exists(new_mask_dir):
@@ -110,16 +90,19 @@ def updateMask(train_image_dir, train_csv_path, mask_dir, model, index):
 
         cv2.imwrite(new_mask_path, new_mask)
         print(str(j) + 'save new mask at: ', new_mask_path)
-import os
-def getLastMask(root, gt_name,index):
-    print('get last mask for ' + gt_name)
-    if index <= 1:
-        last_mask_path = os.path.join(root, 'masks', gt_name)
-    else:
-        last_mask_path = os.path.join(root, 'masks', str(index), gt_name)
-    last_mask = Image.open(last_mask_path)
-    if last_mask.mode != 'L':
-        last_mask = last_mask.convert('L')
-    output = np.array(last_mask)
-    return output
 
+def predict_mask_with_net(image, transform, model):
+    #输出网络的预测图，原尺寸大小
+    model.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    img_for_net = transform(image)
+    img_for_net = img_for_net.to(device)
+    img_for_net = img_for_net.sub(0.5).div(0.5)
+
+    img_for_net = img_for_net.unsqueeze(dim=0)
+    predict = model(img_for_net)
+    to_pil = ToPILImage()
+    mask = to_pil(torch.tensor(255 * predict.argmax(dim=1).detach(), dtype=torch.uint8))
+    mask_origin_size = mask.resize(image.size)
+
+    return mask_origin_size
