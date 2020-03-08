@@ -347,9 +347,9 @@ if __name__ == "__main__":
                       'desp': result_str + '\n\nthe infomation is to wl'}
 
             res = requests.get(url=url, params=params)
-            params2 = {"text": 'ubuntu: ' + 'test',
+            params2 = {"text": 'ubuntu: ' + args.tensorboard_name,
                        'desp': result_str + '\n\nthis message is to ljx'}
-            # res2 = requests.get(url=url2, params=params2)
+            res2 = requests.get(url=url2, params=params2)
             print(res.text)
-            # print(res2.text)
+            print(res2.text)
 
