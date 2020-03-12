@@ -57,7 +57,7 @@ class UnionLossWithCrossEntropyAndSize(nn.Module):
         loss_crossEntropy = self.crossEntropyLoss(inputs, targets)
         loss_size = self.sizeLoss(inputs, targets)
         loss_size = torch.log10(loss_size)
-        return loss_crossEntropy + 0.0005 * loss_size
+        return loss_crossEntropy + 0.03 * loss_size
 
 # ######## ------ Size loss function  (naive way) ---------- ###########
 def simplex(t: Tensor, axis=1) -> bool:

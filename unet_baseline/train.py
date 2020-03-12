@@ -31,12 +31,12 @@ def parse_args():
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='iter')
-    parser.add_argument('--batch_size', default=2, type=int, help='batch_size')
+    parser.add_argument('--tensorboard_name', default='init')
+    parser.add_argument('--batch_size', default=3, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-    parser.add_argument('--num_epoch', default=50, type=int, help='num epoch')
+    parser.add_argument('--num_epoch', default=20, type=int, help='num epoch')
     parser.add_argument('--ite_start_time', default=0, type=int, help='iteration start epoch')
     parser.add_argument('--ite_end_time', default=10, type=int, help='iteration end times')
     parser.add_argument('--loss', default='ce+size', type=str, help='ce, union, ce+size')
@@ -69,6 +69,9 @@ def build_model(model_name, num_classes):
     else:
         print('wait a minute')
     return net
+
+load_checkpoint = False
+loss_type = 'ce'
 
 def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name=None):
     # record
@@ -109,7 +112,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         if not os.path.exists(checkpoint_path):
             os.mkdir(checkpoint_path)
         checkpoint_name = os.path.join(checkpoint_path, args.fold_num+args.params_name)
-    if args.resume != 0:
+    if load_checkpoint:
         logging.info('Resuming from checkpoint...')
         checkpoint = torch.load(checkpoint_name)
         best_loss = checkpoint['loss']
@@ -120,6 +123,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         best_loss = float('inf')
         start_epoch = 0
         history = {'train_loss': [], 'test_loss': [], 'test_dice': []}
+    start_epoch = 0
     end_epoch = start_epoch + args.num_epoch
 
     # if torch.cuda.device_count() > 1:
@@ -176,11 +180,11 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                              num_workers=8, shuffle=True, drop_last=True)
 
     # loss function, optimizer and scheduler
-    if args.loss == 'ce':
+    if loss_type == 'ce':
         criterion = CrossEntropyLoss2d().to(device)
-    elif args.loss == 'union':
+    elif loss_type == 'union':
         criterion = UnionLossWithCrossEntropyAndDiceLoss().to(device)
-    elif args.loss == 'ce+size':
+    elif loss_type == 'ce+size':
         criterion = UnionLossWithCrossEntropyAndSize().to(device)
     else:
         print('Do not have this loss')
@@ -297,9 +301,11 @@ if __name__ == "__main__":
 
     #all train data csv, including train and val
     train_data_csv = os.path.join(sys.path[0], '../data/fixed-csv/train_data.csv')
-
+    load_checkpoint
+    loss_type
+    if args.resume == 1: load_checkpoint = True
     start = args.ite_start_time
-    if start != 0: args.resume = 1
+    if start != 0: load_checkpoint = True
     while start < args.ite_end_time:
         TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
         if len(args.tensorboard_name) == 0:
@@ -311,10 +317,13 @@ if __name__ == "__main__":
         if not os.path.exists(checkpoint_path):
             os.mkdir(checkpoint_path)
         checkpoint_name = os.path.join(checkpoint_path, str(start) + args.params_name)
+        loss_type = args.loss
         model = Train(train_root, train_csv, test_root, test_csv,start, checkpoint_name)
 
         update_mask.updateMask(train_root,train_data_csv,'../data/CVC-912/train/masks',model, start)
         start += 1
+        load_checkpoint = False
+        loss_type = 'union'
 
         # test
         dataset_root = os.path.join(sys.path[0], '../data/CVC-912/test')
@@ -349,7 +358,7 @@ if __name__ == "__main__":
             res = requests.get(url=url, params=params)
             params2 = {"text": 'ubuntu: ' + args.tensorboard_name,
                        'desp': result_str + '\n\nthis message is to ljx'}
-            res2 = requests.get(url=url2, params=params2)
+            # res2 = requests.get(url=url2, params=params2)
             print(res.text)
-            print(res2.text)
+            # print(res2.text)
 
