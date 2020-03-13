@@ -43,9 +43,9 @@ def parse_args():
     parser.add_argument('--loss', default='ce+size', type=str, help='ce, union, ce+size')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
-    parser.add_argument('--resume', default=1, type=int, help='resume from checkpoint')
+    parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
-    parser.add_argument('--params_name', default='0.03run6.pkl')
+    parser.add_argument('--params_name', default='run0.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
     parser.add_argument('--style', default='aug', help='none or aug')
@@ -247,18 +247,21 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                 import cv2
                 cv2.imwrite('1.jpg', a)
                 im_target = np.resize(im_target, (288,384))
-                target = torch.from_numpy(im_target.astype(np.float))
+                target = torch.from_numpy(im_target).long()
                 target = target.unsqueeze(0)
                 temps.append(target)
-            outputs = torch.cat((temps[0],temps[1]),0)
 
-            outputs = outputs.to(device)
+            new_gt = temps[0]
+            new_gt = torch.cat([x for x in temps],0)
+            #new_gt = torch.cat((temps[0],temps[1]),0)
+
+            new_gt = new_gt.to(device)
 
             if args.loss == 'ce-dice':
                 # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
                 pass
             else:
-                loss = criterion(outputs, targets)
+                loss = criterion(outputs, new_gt)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
