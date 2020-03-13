@@ -212,15 +212,14 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
             from skimage import segmentation
             import numpy as np
             seg_labs = []
+            images = []
             for input in inputs:
                 input_tem = input.clone().numpy().astype(np.double)
-                input_tem = input_tem * 0.5
-                input_tem = input_tem + 0.5
-                input_tem = input_tem * 255
-                input_tem = input_tem.astype(np.uint8)
+                input_tem = (((input_tem * 0.5) + 0.5) * 255).astype(np.uint8)
                 input_tem = np.transpose(input_tem,(1,2,0))
                 import cv2
                 input_tem = cv2.cvtColor(input_tem, cv2.COLOR_RGB2BGR)
+                images.append(input_tem)
                 #seg_map = segmentation.felzenszwalb(input, scale=32, sigma=0.5, min_size=64)
                 seg_map = segmentation.slic(input_tem, n_segments=100, compactness=100)
                 seg_map = seg_map.flatten()
@@ -238,10 +237,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
             spixel_mask_temps = []
             for i in range(int(args.batch_size)):
                 output = outputs[i]
-                obj_softmax = F.softmax(output)
-                obj_tem = obj_softmax[1]
-
-                obj_tem = obj_tem.view(-1, 1)
+                obj_tem = F.softmax(output)[1].view(-1, 1)
                 output = output.permute(1, 2, 0).view(-1, 2)#一共2类
                 #output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
                 target = torch.argmax(output, 1)
@@ -254,9 +250,6 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
 
                     obj_tem[inds] = torch.mean(obj_tem[inds])
 
-                a = np.resize(im_target,(288,384)).astype(np.uint8)*255
-                import cv2
-                cv2.imwrite('1.jpg', a)
                 im_target = np.resize(im_target, (288,384))
                 target = torch.from_numpy(im_target).long()
                 target = target.unsqueeze(0)
@@ -266,24 +259,27 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                 spixel_mask = torch.from_numpy(spixel_mask).long().unsqueeze(0)
                 spixel_mask_temps.append(spixel_mask)
 
-            new_gt = temps[0]
             new_gt = torch.cat([x for x in temps],0)
             #new_gt = torch.cat((temps[0],temps[1]),0)
             new_gt = new_gt.to(device)
 
             smasks = torch.cat([x for x in spixel_mask_temps])
-            smasks = smasks.to(device)
 
             from utils.crf import dense_crf
+            crf_res = []
+            for i in range(len(images)):
+                out = dense_crf(images[i], smasks[i])
+                crf_res.append(torch.from_numpy(out))
+            crf_results = torch.cat([x for x in crf_res]).to(device)
 
-            dense_crf()
+
 
             if args.loss == 'ce-dice':
                 # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
                 pass
             elif loss_type == 'ce+boundary':
                 loss1 = criterion(outputs, new_gt)
-                loss2 = criterion2(outputs, smasks)
+                loss2 = criterion2(outputs, crf_results)
                 loss = loss1 + loss2
             else:
                 loss = criterion(outputs, new_gt)

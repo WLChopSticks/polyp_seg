@@ -107,9 +107,8 @@ class Boundary_Loss():
         inputs = F.softmax(inputs, dim=1)
         assert simplex(inputs)
         preds = inputs[:, 1, :, :]
-        crf_prob = torch.from_numpy(targets)
 
-        loss = torch.mean(torch.sum(crf_prob * torch.log(crf_prob / preds)))
+        loss = torch.mean(torch.sum(targets * torch.log(targets / preds)))
 
         return loss
 
