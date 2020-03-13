@@ -2,6 +2,7 @@ import sys
 sys.path.extend(['../', '../../','../models/deeplab3_plus'])
 import os, time, argparse
 import logging
+import cv2
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
@@ -32,7 +33,7 @@ def parse_args():
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
     parser.add_argument('--tensorboard_name', default='init')
-    parser.add_argument('--batch_size', default=3, type=int, help='batch_size')
+    parser.add_argument('--batch_size', default=2, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
@@ -42,9 +43,9 @@ def parse_args():
     parser.add_argument('--loss', default='ce+size', type=str, help='ce, union, ce+size')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
-    parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
+    parser.add_argument('--resume', default=1, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
-    parser.add_argument('--params_name', default='run0.pkl')
+    parser.add_argument('--params_name', default='0.03run6.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
     parser.add_argument('--style', default='aug', help='none or aug')
@@ -204,10 +205,55 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         train_loss = 0.
         for batch_idx, (inputs, targets) in tqdm(enumerate(train_loader),
                                                  total=int(len(train_loader.dataset) / args.batch_size) + 1):
+
+            from skimage import segmentation
+            import numpy as np
+            seg_labs = []
+            for input in inputs:
+                input_tem = input.clone().numpy().astype(np.double)
+                input_tem = input_tem * 0.5
+                input_tem = input_tem + 0.5
+                input_tem = input_tem * 255
+                input_tem = input_tem.astype(np.uint8)
+                input_tem = np.transpose(input_tem,(1,2,0))
+                import cv2
+                input_tem = cv2.cvtColor(input_tem, cv2.COLOR_RGB2BGR)
+                #seg_map = segmentation.felzenszwalb(input, scale=32, sigma=0.5, min_size=64)
+                seg_map = segmentation.slic(input_tem, n_segments=100, compactness=100)
+                seg_map = seg_map.flatten()
+                seg_lab = [np.where(seg_map == u_label)[0]
+                           for u_label in np.unique(seg_map)]
+                seg_labs.append(seg_lab)
+
             inputs = inputs.to(device)
             targets = targets.to(device)
             optimizer.zero_grad()
             outputs = net(inputs)
+
+            #outputs 为输出结果
+            temps = []
+            for i in range(int(args.batch_size)):
+                output = outputs[i]
+                output = output.permute(1, 2, 0).view(-1, 2)#一共2类
+                #output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
+                target = torch.argmax(output, 1)
+                im_target = target.data.cpu().numpy()
+                '''refine'''
+                for inds in seg_labs[i]:
+                    u_labels, hist = np.unique(im_target[inds], return_counts=True)
+                    im_target[inds] = u_labels[np.argmax(hist)]
+
+                a = np.resize(im_target,(288,384)).astype(np.uint8)*255
+                import cv2
+                cv2.imwrite('1.jpg', a)
+                im_target = np.resize(im_target, (288,384))
+                target = torch.from_numpy(im_target.astype(np.float))
+                target = target.unsqueeze(0)
+                temps.append(target)
+            outputs = torch.cat((temps[0],temps[1]),0)
+
+            outputs = outputs.to(device)
+
             if args.loss == 'ce-dice':
                 # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
                 pass
