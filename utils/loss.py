@@ -13,7 +13,7 @@ class UnionLossWithCrossEntropyAndDiceLoss(nn.Module):
 
     def forward(self, inputs, targets):
         loss_crossEntropy = self.crossEntropyLoss(inputs, targets)
-        loss_dice = self.diceLoss(inputs, targets)
+        loss_dice = self.so(inputs, targets)
 
         return loss_crossEntropy + loss_dice
 
@@ -92,6 +92,25 @@ class Size_Loss_naive():
         loss = loss.sum() / (w * h)
 
         #return 0
+        return loss
+
+class Boundary_Loss():
+    """
+        Behaviour not exactly the same ; original numpy code used thresholding.
+        Not quite sure it will have an inmpact or not
+    """
+    def __init__(self, **kwargs):
+        # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
+        super(Boundary_Loss, self).__init__()
+
+    def __call__(self, inputs, targets):
+        inputs = F.softmax(inputs, dim=1)
+        assert simplex(inputs)
+        preds = inputs[:, 1, :, :]
+        crf_prob = torch.from_numpy(targets)
+
+        loss = torch.mean(torch.sum(crf_prob * torch.log(crf_prob / preds)))
+
         return loss
 
 def dice_fn(inputs, targets, threshold=0.5):

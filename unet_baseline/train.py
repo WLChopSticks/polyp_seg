@@ -17,7 +17,7 @@ from torchvision.transforms import RandomAffine, RandomRotation, RandomHorizonta
 from datasets_own import poly_seg, Compose_own
 from models import UNet, fcn, unet_plus
 from models.deeplab3_plus.deeplab import *
-from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss, UnionLossWithCrossEntropyAndSize
+from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss, UnionLossWithCrossEntropyAndSize, Boundary_Loss
 from datetime import datetime
 import plot.单纯测试验证集 as rstest
 import update_mask
@@ -40,12 +40,12 @@ def parse_args():
     parser.add_argument('--num_epoch', default=20, type=int, help='num epoch')
     parser.add_argument('--ite_start_time', default=0, type=int, help='iteration start epoch')
     parser.add_argument('--ite_end_time', default=10, type=int, help='iteration end times')
-    parser.add_argument('--loss', default='ce+size', type=str, help='ce, union, ce+size')
+    parser.add_argument('--loss', default='ce+boundary', type=str, help='ce, union, ce+size, ce+boundary')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
-    parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
+    parser.add_argument('--resume', default=1, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
-    parser.add_argument('--params_name', default='run0.pkl')
+    parser.add_argument('--params_name', default='0.03run6.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
     parser.add_argument('--style', default='aug', help='none or aug')
@@ -187,6 +187,9 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         criterion = UnionLossWithCrossEntropyAndDiceLoss().to(device)
     elif loss_type == 'ce+size':
         criterion = UnionLossWithCrossEntropyAndSize().to(device)
+    elif loss_type == 'ce+boundary':
+        criterion = CrossEntropyLoss2d().to(device)
+        criterion2 = Boundary_Loss().to(device)
     else:
         print('Do not have this loss')
     optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
@@ -232,16 +235,24 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
 
             #outputs 为输出结果
             temps = []
+            spixel_mask_temps = []
             for i in range(int(args.batch_size)):
                 output = outputs[i]
+                obj_softmax = F.softmax(output)
+                obj_tem = obj_softmax[1]
+
+                obj_tem = obj_tem.view(-1, 1)
                 output = output.permute(1, 2, 0).view(-1, 2)#一共2类
                 #output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
                 target = torch.argmax(output, 1)
                 im_target = target.data.cpu().numpy()
+
                 '''refine'''
                 for inds in seg_labs[i]:
                     u_labels, hist = np.unique(im_target[inds], return_counts=True)
                     im_target[inds] = u_labels[np.argmax(hist)]
+
+                    obj_tem[inds] = torch.mean(obj_tem[inds])
 
                 a = np.resize(im_target,(288,384)).astype(np.uint8)*255
                 import cv2
@@ -251,15 +262,29 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                 target = target.unsqueeze(0)
                 temps.append(target)
 
+                spixel_mask = np.resize(obj_tem, (288,384))
+                spixel_mask = torch.from_numpy(spixel_mask).long().unsqueeze(0)
+                spixel_mask_temps.append(spixel_mask)
+
             new_gt = temps[0]
             new_gt = torch.cat([x for x in temps],0)
             #new_gt = torch.cat((temps[0],temps[1]),0)
-
             new_gt = new_gt.to(device)
+
+            smasks = torch.cat([x for x in spixel_mask_temps])
+            smasks = smasks.to(device)
+
+            from utils.crf import dense_crf
+
+            dense_crf()
 
             if args.loss == 'ce-dice':
                 # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
                 pass
+            elif loss_type == 'ce+boundary':
+                loss1 = criterion(outputs, new_gt)
+                loss2 = criterion2(outputs, smasks)
+                loss = loss1 + loss2
             else:
                 loss = criterion(outputs, new_gt)
             loss.backward()
