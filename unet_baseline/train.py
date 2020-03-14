@@ -255,7 +255,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                 target = target.unsqueeze(0)
                 temps.append(target)
 
-                spixel_mask = np.resize(obj_tem, (288,384))
+                spixel_mask = np.resize(obj_tem.cpu().detach().numpy(), (288,384))
                 spixel_mask = torch.from_numpy(spixel_mask).long().unsqueeze(0)
                 spixel_mask_temps.append(spixel_mask)
 
@@ -269,7 +269,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
             crf_res = []
             for i in range(len(images)):
                 out = dense_crf(images[i], smasks[i])
-                crf_res.append(torch.from_numpy(out))
+                crf_res.append(torch.from_numpy(out).unsqueeze(0))
             crf_results = torch.cat([x for x in crf_res]).to(device)
 
 

@@ -94,7 +94,7 @@ class Size_Loss_naive():
         #return 0
         return loss
 
-class Boundary_Loss():
+class Boundary_Loss(nn.Module):
     """
         Behaviour not exactly the same ; original numpy code used thresholding.
         Not quite sure it will have an inmpact or not
@@ -108,7 +108,7 @@ class Boundary_Loss():
         assert simplex(inputs)
         preds = inputs[:, 1, :, :]
 
-        loss = torch.mean(torch.sum(targets * torch.log(targets / preds)))
+        loss = torch.mean(torch.sum(targets.float() * torch.log(targets.float() / preds)))
 
         return loss
 
