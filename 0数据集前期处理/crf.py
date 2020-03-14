@@ -31,28 +31,28 @@ def dense_crf(img, output_probs):
 
 
 
-for (root, dirs, files) in os.walk("../data/CVC-912/train/images"):
-    print(root)
-    print(dirs)
-    print(files)
-    for file in files:
-        img_path = os.path.join(root,file)
-        pre_path = '/'.join(root.split('/')[:-1])
-        img = cv2.imread(img_path)
-        if '612' in file:
-            file = file.split('.')[0] + '.tif'
-        mask_path = os.path.join(pre_path,'masks_back',file)
-        mask=  Image.open(mask_path)
-        if mask.mode != 'L':
-            mask = mask.convert('L')
-        mask = np.array(mask)
-        out = dense_crf(img,mask)
-        save_path_pre = os.path.join(pre_path,'out_10_40_13')
-        if not os.path.exists(save_path_pre):
-            os.mkdir(save_path_pre)
-        save_path = os.path.join(save_path_pre, file)
-        out = out * 255
-        cv2.imwrite(save_path,out)
-        # cv2.imshow('img',out)
-        print(save_path)
+# for (root, dirs, files) in os.walk("../data/CVC-912/train/images"):
+#     print(root)
+#     print(dirs)
+#     print(files)
+#     for file in files:
+#         img_path = os.path.join(root,file)
+#         pre_path = '/'.join(root.split('/')[:-1])
+#         img = cv2.imread(img_path)
+#         if '612' in file:
+#             file = file.split('.')[0] + '.tif'
+#         mask_path = os.path.join(pre_path,'masks_back',file)
+#         mask=  Image.open(mask_path)
+#         if mask.mode != 'L':
+#             mask = mask.convert('L')
+#         mask = np.array(mask)
+#         out = dense_crf(img,mask)
+#         save_path_pre = os.path.join(pre_path,'out_10_40_13')
+#         if not os.path.exists(save_path_pre):
+#             os.mkdir(save_path_pre)
+#         save_path = os.path.join(save_path_pre, file)
+#         out = out * 255
+#         cv2.imwrite(save_path,out)
+#         # cv2.imshow('img',out)
+#         print(save_path)
 

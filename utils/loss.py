@@ -107,8 +107,9 @@ class Boundary_Loss(nn.Module):
         inputs = F.softmax(inputs, dim=1)
         assert simplex(inputs)
         preds = inputs[:, 1, :, :]
+        gts = targets[:, 1, :, :]
 
-        loss = torch.mean(torch.sum(targets.float() * torch.log(targets.float() / preds)))
+        loss = torch.mean(torch.sum(gts * torch.log(gts / (preds+1e-8))))
 
         return loss
 
