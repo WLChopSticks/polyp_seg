@@ -13,7 +13,7 @@ class UnionLossWithCrossEntropyAndDiceLoss(nn.Module):
 
     def forward(self, inputs, targets):
         loss_crossEntropy = self.crossEntropyLoss(inputs, targets)
-        loss_dice = self.so(inputs, targets)
+        loss_dice = self.diceLoss(inputs, targets)
 
         return loss_crossEntropy + loss_dice
 
