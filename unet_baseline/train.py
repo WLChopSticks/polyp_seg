@@ -237,7 +237,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
             spixel_mask_temps = []
             for i in range(int(args.batch_size)):
                 output = outputs[i]
-                obj_tem = F.softmax(output)[1].view(-1, 1)
+                obj_tem = F.softmax(output, dim=1)[1].view(-1, 1)
                 output = output.permute(1, 2, 0).view(-1, 2)#一共2类
                 #output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
                 target = torch.argmax(output, 1)
@@ -256,7 +256,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                 temps.append(target)
 
                 spixel_mask = np.resize(obj_tem.cpu().detach().numpy(), (288,384))
-                spixel_mask = torch.from_numpy(spixel_mask).long().unsqueeze(0)
+                spixel_mask = torch.from_numpy(spixel_mask).unsqueeze(0)
                 spixel_mask_temps.append(spixel_mask)
 
             new_gt = torch.cat([x for x in temps],0)
