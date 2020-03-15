@@ -18,6 +18,7 @@ from datasets_own import poly_seg, Compose_own
 from models import UNet, fcn, unet_plus
 from models.deeplab3_plus.deeplab import *
 from utils import CrossEntropyLoss2d, dice_fn, UnionLossWithCrossEntropyAndDiceLoss, UnionLossWithCrossEntropyAndSize, Boundary_Loss
+from utils import DiceLoss, Size_Loss_naive, UnionLossWithCrossEntropyAndDiceAndBoundary
 from datetime import datetime
 import plot.单纯测试验证集 as rstest
 import update_mask
@@ -34,7 +35,7 @@ def parse_args():
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='lossunit2')
+    parser.add_argument('--tensorboard_name', default='lossunit4')
     parser.add_argument('--batch_size', default=3, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
@@ -42,7 +43,7 @@ def parse_args():
     parser.add_argument('--num_epoch', default=100, type=int, help='num epoch')
     parser.add_argument('--ite_start_time', default=0, type=int, help='iteration start epoch')
     parser.add_argument('--ite_end_time', default=1, type=int, help='iteration end times')
-    parser.add_argument('--loss', default='ce', type=str, help='ce, union, ce+size, ce+boundary')
+    parser.add_argument('--loss', default='ce+boundary', type=str, help='ce, union, ce+size, ce+boundary')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
     parser.add_argument('--resume', default=1, type=int, help='resume from checkpoint')
@@ -190,8 +191,8 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
     elif loss_type == 'ce+size':
         criterion = UnionLossWithCrossEntropyAndSize().to(device)
     elif loss_type == 'ce+boundary':
-        criterion = CrossEntropyLoss2d().to(device)
-        criterion2 = Boundary_Loss().to(device)
+        criterion = UnionLossWithCrossEntropyAndSize().to(device)
+        criterion2 = UnionLossWithCrossEntropyAndDiceAndBoundary().to(device)
     else:
         print('Do not have this loss')
     optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
@@ -201,6 +202,9 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
 
     # training process
     logging.info('Start Training For Polyp Seg')
+    from skimage import segmentation
+    import numpy as np
+    size_loss_epoch = -1
     for epoch in range(start_epoch, end_epoch):
         ts = time.time()
         scheduler.step()
@@ -208,75 +212,91 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         # train
         net.train()
         train_loss = 0.
+
         for batch_idx, (inputs, targets) in tqdm(enumerate(train_loader),
                                                  total=int(len(train_loader.dataset) / args.batch_size) + 1):
 
-            from skimage import segmentation
-            import numpy as np
-            seg_labs = []
-            images = []
-            for input in inputs:
-                input_tem = input.clone().numpy().astype(np.double)
-                input_tem = (((input_tem * 0.5) + 0.5) * 255).astype(np.uint8)
-                input_tem = np.transpose(input_tem,(1,2,0))
-                # import cv2
-                input_tem = cv2.cvtColor(input_tem, cv2.COLOR_RGB2BGR)
-                images.append(input_tem)
-                #seg_map = segmentation.felzenszwalb(input, scale=32, sigma=0.5, min_size=64)
-                seg_map = segmentation.slic(input_tem, n_segments=300, compactness=100)
-                seg_map = seg_map.flatten()
-                seg_lab = [np.where(seg_map == u_label)[0]
-                           for u_label in np.unique(seg_map)]
-                seg_labs.append(seg_lab)
+            if epoch >= size_loss_epoch:
+                seg_labs = []
+                images = []
+                for input in inputs:
+                    input_tem = input.clone().numpy().astype(np.double)
+                    input_tem = (((input_tem * 0.5) + 0.5) * 255).astype(np.uint8)
+                    input_tem = np.transpose(input_tem,(1,2,0))
+                    # import cv2
+                    input_tem = cv2.cvtColor(input_tem, cv2.COLOR_RGB2BGR)
+                    images.append(input_tem)
+                    #seg_map = segmentation.felzenszwalb(input, scale=32, sigma=0.5, min_size=64)
+                    seg_map = segmentation.slic(input_tem, n_segments=100, compactness=100)
+                    seg_map = seg_map.flatten()
+                    seg_lab = [np.where(seg_map == u_label)[0]
+                               for u_label in np.unique(seg_map)]
+                    seg_labs.append(seg_lab)
 
             inputs = inputs.to(device)
             targets = targets.to(device)
             optimizer.zero_grad()
             outputs = net(inputs)
-            if len(torch.where(torch.isnan(outputs))[0]) != 0:
-                print('app nan:' + str(batch_idx))
-            #outputs 为输出结果
-            temps = []
-            output_softmax = F.softmax(outputs, dim=1)
-            for i in range(int(args.batch_size)):
-                output = outputs[i]
-                output = output.permute(1, 2, 0).view(-1, 2)#一共2类
-                #output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
-                target = torch.argmax(output, 1)
-                im_target = target.data.cpu().numpy()
+            # if len(torch.where(torch.isnan(outputs))[0]) != 0:
+            #     print('app nan:' + str(batch_idx))
+            if epoch >= size_loss_epoch:
+                #outputs 为输出结果
+                temps = []
+                output_softmax = F.softmax(outputs, dim=1)
+                spixel_mask_temps = []
+                for i in range(int(args.batch_size)):
+                    output = outputs[i]
+                    obj_tem = F.softmax(output, dim=0)[1].view(-1, 1)
+                    output = output.permute(1, 2, 0).view(-1, 2)#一共2类
+                    #output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
+                    target = torch.argmax(output, 1)
+                    im_target = target.data.cpu().numpy()
+                    im_obj = obj_tem.cpu().detach().numpy()
 
-                '''refine'''
-                for inds in seg_labs[i]:
-                    u_labels, hist = np.unique(im_target[inds], return_counts=True)
-                    im_target[inds] = u_labels[np.argmax(hist)]
+                    '''refine'''
+                    for inds in seg_labs[i]:
+                        u_labels, hist = np.unique(im_target[inds], return_counts=True)
+                        im_target[inds] = u_labels[np.argmax(hist)]
 
-                im_target = np.resize(im_target, (288,384))
-                target = torch.from_numpy(im_target).long()
-                target = target.unsqueeze(0)
-                temps.append(target)
+                        im_obj[inds] = np.mean(im_obj[inds])
 
-            new_gt = torch.cat([x for x in temps],0)
-            #new_gt = torch.cat((temps[0],temps[1]),0)
-            new_gt = new_gt.to(device)
+                    im_target = np.resize(im_target, (288,384))
+                    target = torch.from_numpy(im_target).long()
+                    target = target.unsqueeze(0)
+                    temps.append(target)
 
-            from utils.crf import dense_crf
-            crf_res = []
-            for i in range(len(images)):
-                out = dense_crf(images[i], output_softmax[i][1].cpu().detach().numpy())
-                crf_res.append(torch.from_numpy(out).unsqueeze(0))
-            crf_results = torch.cat([x for x in crf_res]).to(device)
+                    spixel_mask = np.resize(im_obj, (288, 384))
+                    spixel_mask = torch.from_numpy(spixel_mask).unsqueeze(0)
+                    spixel_mask_temps.append(spixel_mask)
+
+                new_gt = torch.cat([x for x in temps],0)
+                #new_gt = torch.cat((temps[0],temps[1]),0)
+                new_gt = new_gt.to(device)
+
+                smasks = torch.cat([x for x in spixel_mask_temps]).to(device)
+
+            # from utils.crf import dense_crf
+            # crf_res = []
+            # for i in range(len(images)):
+            #     out = dense_crf(images[i], output_softmax[i][1].cpu().detach().numpy())
+            #     crf_res.append(torch.from_numpy(out).unsqueeze(0))
+            # crf_results = torch.cat([x for x in crf_res]).to(device)
 
 
-
-            if args.loss == 'ce-dice':
-                # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
-                pass
-            elif loss_type == 'ce+boundary':
-                loss1 = criterion(outputs, new_gt)
-                loss2 = criterion2(outputs, new_gt)
-                loss = loss1 + 0.0001 * loss2
-            else:
+            if epoch < size_loss_epoch:
                 loss = criterion(outputs, targets)
+            else:
+                loss = criterion2(outputs,targets, smasks,1- ((epoch - size_loss_epoch) * 0.01), 0.00001 * (epoch - size_loss_epoch) * 2)
+
+            # if args.loss == 'ce-dice':
+            #     # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
+            #     pass
+            # elif loss_type == 'ce+boundary':
+            #     loss1 = criterion(outputs, new_gt)
+            #     loss2 = criterion2(outputs, new_gt)
+            #     loss = loss1 + 0.0001 * loss2
+            # else:
+            #     loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()

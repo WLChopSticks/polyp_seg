@@ -94,6 +94,20 @@ class Size_Loss_naive():
         #return 0
         return loss
 
+class UnionLossWithCrossEntropyAndDiceAndBoundary(nn.Module):
+    def __init__(self, weight=None, size_average=True, ignore_index=255):
+        super(UnionLossWithCrossEntropyAndDiceAndBoundary, self).__init__()
+        self.crossEntropyLoss = CrossEntropyLoss2d(weight, size_average, ignore_index)
+        self.diceLoss = DiceLoss()
+        self.boundLoss = Boundary_Loss()
+
+    def forward(self, inputs, targets, starget, dice_co, boundary_co):
+        loss_crossEntropy = self.crossEntropyLoss(inputs, targets)
+        diceLoss = self.diceLoss(inputs, targets)
+        loss_boundary = self.boundLoss(inputs, starget)
+
+        return loss_crossEntropy +dice_co * diceLoss + boundary_co * loss_boundary
+
 class Boundary_Loss(nn.Module):
     """
         Behaviour not exactly the same ; original numpy code used thresholding.
@@ -104,8 +118,8 @@ class Boundary_Loss(nn.Module):
         super(Boundary_Loss, self).__init__()
 
     def __call__(self, inputs, targets):
-        # inputs = F.softmax(inputs, dim=1)
-        # assert simplex(inputs)
+        inputs = F.softmax(inputs, dim=1)
+        assert simplex(inputs)
         preds = inputs[:, 1, :, :]
         gts = targets
 

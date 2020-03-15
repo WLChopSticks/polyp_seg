@@ -1,1 +1,2 @@
-from .loss import CrossEntropyLoss2d, dice_fn, IoU_fn, DiceLoss,UnionLossWithCrossEntropyAndDiceLoss,UnionLossWithCrossEntropyAndSize,Boundary_Loss
+from .loss import CrossEntropyLoss2d, dice_fn, IoU_fn, DiceLoss,UnionLossWithCrossEntropyAndDiceLoss,UnionLossWithCrossEntropyAndSize,Boundary_Loss, Size_Loss_naive
+from .loss import UnionLossWithCrossEntropyAndDiceAndBoundary
