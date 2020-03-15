@@ -106,7 +106,7 @@ class UnionLossWithCrossEntropyAndDiceAndBoundary(nn.Module):
         diceLoss = self.diceLoss(inputs, targets)
         loss_boundary = self.boundLoss(inputs, targets)
 
-        return loss_crossEntropy +1 * diceLoss + 0.1 * loss_boundary
+        return loss_crossEntropy +1 * diceLoss + loss_boundary
 
 class Boundary_Loss(nn.Module):
     """

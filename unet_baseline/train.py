@@ -269,7 +269,9 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                     temps.append(target)
 
                     spixel_mask = np.resize(im_obj, (288, 384))
-                    spixel_mask = torch.from_numpy(spixel_mask).unsqueeze(0)
+                    spixel_mask = torch.from_numpy(spixel_mask).to(device)
+                    target = targets[i].clone().detach().float()
+                    spixel_mask = (spixel_mask * target).unsqueeze(0)
                     spixel_mask_temps.append(spixel_mask)
 
                 new_gt = torch.cat([x for x in temps],0)
@@ -338,21 +340,21 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                      % (epoch + 1, end_epoch, train_loss_epoch, test_loss_epoch, test_dice_epoch, time_cost))
 
         # save checkpoint
-        if test_loss_epoch < best_loss:
-            logging.info('Checkpoint Saving...')
+        # if test_loss_epoch < best_loss:
+        logging.info('Checkpoint Saving...')
 
-            save_model = net
-            # if torch.cuda.device_count() > 1:
-            #     save_model = list(net.children())[0]
-            state = {
-                'net': save_model.state_dict(),
-                'loss': test_loss_epoch,
-                'dice': test_dice_epoch,
-                'epoch': epoch + 1,
-                'history': history
-            }
-            torch.save(state, checkpoint_name)
-            best_loss = test_loss_epoch
+        save_model = net
+        # if torch.cuda.device_count() > 1:
+        #     save_model = list(net.children())[0]
+        state = {
+            'net': save_model.state_dict(),
+            'loss': test_loss_epoch,
+            'dice': test_dice_epoch,
+            'epoch': epoch + 1,
+            'history': history
+        }
+        torch.save(state, checkpoint_name)
+        best_loss = test_loss_epoch
 
         if test_dice_epoch > best_dice:
             logging.info('Checkpoint Saving...')
