@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='lossunit4')
+    parser.add_argument('--tensorboard_name', default='lossunit5')
     parser.add_argument('--batch_size', default=3, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
@@ -46,13 +46,14 @@ def parse_args():
     parser.add_argument('--loss', default='ce+boundary', type=str, help='ce, union, ce+size, ce+boundary')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
-    parser.add_argument('--resume', default=1, type=int, help='resume from checkpoint')
+    parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
     parser.add_argument('--params_name', default='run1.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
     parser.add_argument('--style', default='aug', help='none or aug')
     parser.add_argument('--send_result', default=False, help='send test result or not')
+    parser.add_argument('--size_loss_epoch', default=-1, type=int, help='size loss need to train for epoches')
     args = parser.parse_args()
     return args
 
@@ -120,11 +121,13 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         logging.info('Resuming from checkpoint...')
         checkpoint = torch.load(checkpoint_name)
         best_loss = checkpoint['loss']
+        best_dice = checkpoint['dice']
         start_epoch = checkpoint['epoch']
         history = checkpoint['history']
         net.load_state_dict(checkpoint['net'])
     else:
         best_loss = float('inf')
+        best_dice = float('inf')
         start_epoch = 0
         history = {'train_loss': [], 'test_loss': [], 'test_dice': []}
     start_epoch = 0
@@ -204,7 +207,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
     logging.info('Start Training For Polyp Seg')
     from skimage import segmentation
     import numpy as np
-    size_loss_epoch = -1
+    size_loss_epoch = args.size_loss_epoch
     for epoch in range(start_epoch, end_epoch):
         ts = time.time()
         scheduler.step()
@@ -286,7 +289,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
             if epoch < size_loss_epoch:
                 loss = criterion(outputs, targets)
             else:
-                loss = criterion2(outputs,targets, smasks,1- ((epoch - size_loss_epoch) * 0.01), 0.00001 * (epoch - size_loss_epoch) * 2)
+                loss = criterion2(outputs,targets, smasks,1- ((epoch - size_loss_epoch) * 0.01), 0.1 * (epoch - size_loss_epoch) * 2)
 
             # if args.loss == 'ce-dice':
             #     # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
@@ -344,11 +347,30 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
             state = {
                 'net': save_model.state_dict(),
                 'loss': test_loss_epoch,
+                'dice': test_dice_epoch,
                 'epoch': epoch + 1,
                 'history': history
             }
             torch.save(state, checkpoint_name)
             best_loss = test_loss_epoch
+
+        if test_dice_epoch > best_dice:
+            logging.info('Checkpoint Saving...')
+
+            save_model = net
+            # if torch.cuda.device_count() > 1:
+            #     save_model = list(net.children())[0]
+            state = {
+                'net': save_model.state_dict(),
+                'loss': test_loss_epoch,
+                'dice': test_dice_epoch,
+                'epoch': epoch + 1,
+                'history': history
+            }
+            checkpoint_name_dice = os.path.join(checkpoint_path, 'dice_' + args.fold_num + args.params_name)
+            torch.save(state, checkpoint_name_dice)
+            best_dice = test_dice_epoch
+
     writer.close()
     return net
 
