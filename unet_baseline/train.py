@@ -34,20 +34,20 @@ def parse_args():
     parser.add_argument('--train_csv', default=r'', type=str, help='train csv file absolute path')
     parser.add_argument('--test_csv', default=r'',  type=str, help='test csv file absolute path')
     parser.add_argument('--event_prefix', default='deeplabV3+', type=str, help='tensorboard logdir prefix')
-    parser.add_argument('--tensorboard_name', default='lossunit')
+    parser.add_argument('--tensorboard_name', default='lossunit2')
     parser.add_argument('--batch_size', default=3, type=int, help='batch_size')
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-    parser.add_argument('--num_epoch', default=50, type=int, help='num epoch')
+    parser.add_argument('--num_epoch', default=100, type=int, help='num epoch')
     parser.add_argument('--ite_start_time', default=0, type=int, help='iteration start epoch')
     parser.add_argument('--ite_end_time', default=1, type=int, help='iteration end times')
-    parser.add_argument('--loss', default='ce+boundary', type=str, help='ce, union, ce+size, ce+boundary')
+    parser.add_argument('--loss', default='ce', type=str, help='ce, union, ce+size, ce+boundary')
     parser.add_argument('--img_size', default=(288,384), type=tuple, help='(512,512)')
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
     parser.add_argument('--resume', default=1, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
-    parser.add_argument('--params_name', default='run0.pkl')
+    parser.add_argument('--params_name', default='run1.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
     parser.add_argument('--style', default='aug', help='none or aug')
@@ -237,42 +237,32 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                 print('app nan:' + str(batch_idx))
             #outputs 为输出结果
             temps = []
-            spixel_mask_temps = []
+            output_softmax = F.softmax(outputs, dim=1)
             for i in range(int(args.batch_size)):
                 output = outputs[i]
-                obj_tem = F.softmax(output, dim=0)[1].view(-1, 1)
                 output = output.permute(1, 2, 0).view(-1, 2)#一共2类
                 #output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
                 target = torch.argmax(output, 1)
                 im_target = target.data.cpu().numpy()
-                im_obj = obj_tem.cpu().detach().numpy()
 
                 '''refine'''
                 for inds in seg_labs[i]:
                     u_labels, hist = np.unique(im_target[inds], return_counts=True)
                     im_target[inds] = u_labels[np.argmax(hist)]
 
-                    im_obj[inds] = np.mean(im_obj[inds])
-
                 im_target = np.resize(im_target, (288,384))
                 target = torch.from_numpy(im_target).long()
                 target = target.unsqueeze(0)
                 temps.append(target)
 
-                spixel_mask = np.resize(im_obj, (288,384))
-                spixel_mask = torch.from_numpy(spixel_mask).unsqueeze(0)
-                spixel_mask_temps.append(spixel_mask)
-
             new_gt = torch.cat([x for x in temps],0)
             #new_gt = torch.cat((temps[0],temps[1]),0)
             new_gt = new_gt.to(device)
 
-            smasks = torch.cat([x for x in spixel_mask_temps])
-
             from utils.crf import dense_crf
             crf_res = []
             for i in range(len(images)):
-                out = dense_crf(images[i], smasks[i])
+                out = dense_crf(images[i], output_softmax[i][1].cpu().detach().numpy())
                 crf_res.append(torch.from_numpy(out).unsqueeze(0))
             crf_results = torch.cat([x for x in crf_res]).to(device)
 
@@ -283,10 +273,10 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                 pass
             elif loss_type == 'ce+boundary':
                 loss1 = criterion(outputs, new_gt)
-                loss2 = criterion2(outputs, crf_results)
-                loss = loss1 + loss2
+                loss2 = criterion2(outputs, new_gt)
+                loss = loss1 + 0.0001 * loss2
             else:
-                loss = criterion(outputs, new_gt)
+                loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -303,79 +293,12 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         for batch_idx, (inputs, targets) in tqdm(enumerate(test_loader),
                                                  total=int(len(test_loader.dataset) / args.batch_size) + 1):
             with torch.no_grad():
-
-                seg_labs = []
-                images = []
-                for input in inputs:
-                    input_tem = input.clone().numpy().astype(np.double)
-                    input_tem = (((input_tem * 0.5) + 0.5) * 255).astype(np.uint8)
-                    input_tem = np.transpose(input_tem, (1, 2, 0))
-                    # import cv2
-                    input_tem = cv2.cvtColor(input_tem, cv2.COLOR_RGB2BGR)
-                    images.append(input_tem)
-                    # seg_map = segmentation.felzenszwalb(input, scale=32, sigma=0.5, min_size=64)
-                    seg_map = segmentation.slic(input_tem, n_segments=300, compactness=100)
-                    seg_map = seg_map.flatten()
-                    seg_lab = [np.where(seg_map == u_label)[0]
-                               for u_label in np.unique(seg_map)]
-                    seg_labs.append(seg_lab)
-
                 inputs = inputs.to(device)
                 targets = targets.to(device)
                 outputs = net(inputs)
-
-                # outputs 为输出结果
-                temps = []
-                spixel_mask_temps = []
-                for i in range(int(args.batch_size)):
-                    output = outputs[i]
-                    obj_tem = F.softmax(output, dim=0)[1].view(-1, 1)
-                    output = output.permute(1, 2, 0).view(-1, 2)  # 一共2类
-                    # output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
-                    target = torch.argmax(output, 1)
-                    im_target = target.data.cpu().numpy()
-
-                    '''refine'''
-                    for inds in seg_labs[i]:
-                        u_labels, hist = np.unique(im_target[inds], return_counts=True)
-                        im_target[inds] = u_labels[np.argmax(hist)]
-
-                        obj_tem[inds] = torch.mean(obj_tem[inds])
-
-                    im_target = np.resize(im_target, (288, 384))
-                    target = torch.from_numpy(im_target).long()
-                    target = target.unsqueeze(0)
-                    temps.append(target)
-
-                    spixel_mask = np.resize(obj_tem.cpu().detach().numpy(), (288, 384))
-                    spixel_mask = torch.from_numpy(spixel_mask).unsqueeze(0)
-                    spixel_mask_temps.append(spixel_mask)
-
-                new_gt = torch.cat([x for x in temps], 0)
-                # new_gt = torch.cat((temps[0],temps[1]),0)
-                new_gt = new_gt.to(device)
-
-                smasks = torch.cat([x for x in spixel_mask_temps])
-
-                from utils.crf import dense_crf
-                crf_res = []
-                for i in range(len(images)):
-                    out = dense_crf(images[i], smasks[i])
-                    crf_res.append(torch.from_numpy(out).unsqueeze(0))
-                crf_results = torch.cat([x for x in crf_res]).to(device)
-
-
-
-                # inputs = inputs.to(device)
-                # targets = targets.to(device)
-                # outputs = net(inputs)
                 if args.loss == 'ce-dice':
                     # loss = 2 * criterion1(outputs, targets) + criterion2(outputs, targets)
                     pass
-                elif loss_type == 'ce+boundary':
-                    loss1 = criterion(outputs, new_gt)
-                    loss2 = criterion2(outputs, crf_results)
-                    loss = loss1 + loss2
                 else:
                     loss = criterion(outputs, targets)
                 dice = dice_fn(outputs, targets)
@@ -434,7 +357,7 @@ if __name__ == "__main__":
     if len(train_root) == 0:
         train_root = os.path.join(sys.path[0], '../data/CVC-912/train')
     if len(test_root) == 0:
-        test_root = os.path.join(sys.path[0], '../data/CVC-912/train')
+        test_root = os.path.join(sys.path[0], '../data/CVC-912/val')
     if len(train_csv) == 0:
         train_csv = os.path.join(sys.path[0], '../data/fixed-csv/train.csv')
     if len(test_csv) == 0:
@@ -461,7 +384,7 @@ if __name__ == "__main__":
         loss_type = args.loss
         model = Train(train_root, train_csv, test_root, test_csv,start, checkpoint_name)
 
-        update_mask.updateMask(train_root,train_data_csv,'../data/CVC-912/train/masks',model, start)
+        # update_mask.updateMask(train_root,train_data_csv,'../data/CVC-912/train/masks',model, start)
         start += 1
         load_checkpoint = False
         loss_type = 'union'

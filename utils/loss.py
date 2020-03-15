@@ -104,10 +104,10 @@ class Boundary_Loss(nn.Module):
         super(Boundary_Loss, self).__init__()
 
     def __call__(self, inputs, targets):
-        inputs = F.softmax(inputs, dim=1)
-        assert simplex(inputs)
+        # inputs = F.softmax(inputs, dim=1)
+        # assert simplex(inputs)
         preds = inputs[:, 1, :, :]
-        gts = targets[:, 1, :, :]
+        gts = targets
 
         loss = torch.mean(torch.sum(gts * torch.log(gts / (preds+1e-8))))
 
