@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument('--gpu_order', default='0', type=str, help='gpu order')
     parser.add_argument('--torch_seed', default=2, type=int, help='torch_seed')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-    parser.add_argument('--num_epoch', default=200, type=int, help='num epoch')
+    parser.add_argument('--num_epoch', default=20, type=int, help='num epoch')
     parser.add_argument('--ite_start_time', default=0, type=int, help='iteration start epoch')
     parser.add_argument('--ite_end_time', default=1, type=int, help='iteration end times')
     parser.add_argument('--loss', default='ce+boundary', type=str, help='ce, union, ce+size, ce+boundary')
@@ -49,13 +49,13 @@ def parse_args():
     parser.add_argument('--lr_policy', default='StepLR', type=str, help='StepLR')
     parser.add_argument('--resume', default=0, type=int, help='resume from checkpoint')
     parser.add_argument('--checkpoint', default='checkpoint/')
-    parser.add_argument('--params_name', default='init_0.7668.pkl')
+    parser.add_argument('--params_name', default='222.pkl')
     parser.add_argument('--log_name', default='unet.log', type=str, help='log name')
     parser.add_argument('--history', default='history/')
     parser.add_argument('--style', default='aug', help='none or aug')
     parser.add_argument('--send_result', default=False, help='send test result or not')
-    parser.add_argument('--size_loss_epoch', default=50, type=int, help='size loss need to train for epoches')
-    parser.add_argument('--boundary_co', default=-1, type=float, help='size loss need to train for epoches')
+    parser.add_argument('--size_loss_epoch', default=0, type=int, help='size loss need to train for epoches')
+    parser.add_argument('--boundary_co', default=0, type=float, help='size loss need to train for epoches')
     args = parser.parse_args()
     return args
 
@@ -123,13 +123,13 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         logging.info('Resuming from checkpoint...')
         checkpoint = torch.load(checkpoint_name)
         best_loss = checkpoint['loss']
-        # best_dice = checkpoint['dice']
+        best_dice = checkpoint['dice']
         start_epoch = checkpoint['epoch']
         history = checkpoint['history']
         net.load_state_dict(checkpoint['net'])
     else:
         best_loss = float('inf')
-        best_dice = float('inf')
+        best_dice = 0
         start_epoch = 0
         history = {'train_loss': [], 'test_loss': [], 'test_dice': []}
     start_epoch = 0
@@ -152,17 +152,17 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
     # RandomOrder
     if args.style == 'aug':
         train_img_aug = Compose_own([
-            # RandomAffine(90, shear=45),
-            # RandomRotation(90),
-            # RandomHorizontalFlip(),
+            RandomAffine(90, shear=45),
+            RandomRotation(90),
+            RandomHorizontalFlip(),
             # ColorJitter(brightness=0.05),
             Resize(img_size),
             ToTensor()])
 
         train_mask_aug = Compose_own([
-            # RandomAffine(90, shear=45),
-            # RandomRotation(90),
-            # RandomHorizontalFlip(),
+            RandomAffine(90, shear=45),
+            RandomRotation(90),
+            RandomHorizontalFlip(),
             # ColorJitter(brightness=0.05),
             Resize(img_size),
             ToTensor()])
@@ -203,7 +203,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
     optimizer = Adam(net.parameters(), lr=args.lr, amsgrad=True)
     # optimizer = SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     if args.lr_policy == 'StepLR':
-        scheduler = StepLR(optimizer, step_size=args.size_loss_epoch, gamma=0.5)
+        scheduler = StepLR(optimizer, step_size=100, gamma=0.5)
 
     # training process
     logging.info('Start Training For Polyp Seg')
@@ -221,24 +221,21 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
         for batch_idx, (inputs, gts, img_names) in tqdm(enumerate(train_loader),
                                                  total=int(len(train_loader.dataset) / args.batch_size) + 1):
 
-            if epoch >= 0:
-                seg_labs = []
-                images = []
-                for input in inputs:
-                    input_tem = input.clone().numpy().astype(np.double)
-                    input_tem = (((input_tem * 0.5) + 0.5) * 255).astype(np.uint8)
-                    input_tem = np.transpose(input_tem,(1,2,0))
-                    # import cv2
-                    # input_tem = cv2.cvtColor(input_tem, cv2.COLOR_RGB2BGR)
-                    images.append(input_tem)
-                    # seg_map = segmentation.felzenszwalb(input_tem, scale=32, sigma=0.5, min_size=128)
-                    # image_path = os.path.join('../data/CVC-912/train/images', img_names)
-                    seg_map = slic(input_tem, n_segments=100, compactness=10)
-                    out = mark_boundaries(input_tem, seg_map)
-                    seg_map = seg_map.flatten()
-                    seg_lab = [np.where(seg_map == u_label)[0]
-                               for u_label in np.unique(seg_map)]
-                    seg_labs.append(seg_lab)
+            seg_labs = []
+            images = []
+            for input in inputs:
+                input_tem = input.clone().numpy().astype(np.double)
+                input_tem = (((input_tem * 0.5) + 0.5) * 255).astype(np.uint8)
+                input_tem = np.transpose(input_tem,(1,2,0))
+                images.append(input_tem)
+                # seg_map = segmentation.felzenszwalb(input_tem, scale=32, sigma=0.5, min_size=128)
+                # image_path = os.path.join('../data/CVC-912/train/images', img_names)
+                seg_map = slic(input_tem, n_segments=300, compactness=10)
+                # out = mark_boundaries(input_tem, seg_map)
+                seg_map = seg_map.flatten()
+                seg_lab = [np.where(seg_map == u_label)[0]
+                           for u_label in np.unique(seg_map)]
+                seg_labs.append(seg_lab)
 
             inputs = inputs.to(device)
             gts = gts.to(device)
@@ -246,69 +243,59 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
             outputs = net(inputs)
             # if len(torch.where(torch.isnan(outputs))[0]) != 0:
             #     print('app nan:' + str(batch_idx))
-            if epoch >= 0:
-                #outputs 为输出结果
-                temps = []
-                output_softmax = F.softmax(outputs, dim=1)
-                for i in range(int(args.batch_size)):
-                    if epoch < args.size_loss_epoch:
-                        #gt用超像素变化
-                        gt = gts[i].view(-1, 1).cpu().detach().numpy()
-                        for inds in seg_labs[i]:
-                            u_labels, hist = np.unique(gt[inds], return_counts=True)
-                            gt[inds] = u_labels[np.argmax(hist, 0)]
-                        target = torch.from_numpy(gt).long()
-                        target = torch.reshape(target,(288,384))
-                        if target.sum().numpy() == 0:
-                            target = gts[i].cpu()
-                        target = target.unsqueeze(0)
-                        temps.append(target)
-                        cv2.imwrite(os.path.join('123', img_names[i]), gt.reshape((288,384)) * 255)
-                    else:
-                        output = outputs[i]
-                        output = output.permute(1, 2, 0).view(-1, 2)#一共2类
-                        #output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
-                        target = torch.argmax(output, 1)
-                        target = target * (gts[i].view(-1))
-                        im_target = target.data.cpu().numpy()
-                        a = np.resize(im_target, (288, 384))
-                        cv2.imwrite(os.path.join('234', img_names[i]), a * 255)
 
-                        '''refine'''
-                        # if im_target.sum() == 0:
-                        #     im_target = gts[i].view(-1,1).cpu().detach().numpy()
-                        #     for inds in seg_labs[i]:
-                        #         if im_target[inds].sum() != len(inds):
-                        #             im_target[inds] = 0
+            #outputs 为输出结果
+            new_gts_tem = []
+            for i in range(int(args.batch_size)):
+                output = outputs[i]
+                output = output.permute(1, 2, 0).view(-1, 2)  # 一共2类
+                # output = output.permute(1, 2, 0).view(-1, args.mod_dim2)
+                target = torch.argmax(output, 1)
+                target = target * (gts[i].view(-1))
+                im_target = target.data.cpu().numpy()
+                net_output = np.resize(im_target, (288, 384))
+                if not os.path.exists(os.path.join('output',str(epoch))):
+                    os.mkdir(os.path.join('output',str(epoch)))
+                cv2.imwrite(os.path.join('output',str(epoch), img_names[i]), net_output * 255)
+                if epoch < args.size_loss_epoch:
+                    #gt用超像素变化
+                    spixel_gt = gts[i].view(-1, 1).cpu().detach().numpy()
+                    for inds in seg_labs[i]:
+                        u_labels, hist = np.unique(spixel_gt[inds], return_counts=True)
+                        spixel_gt[inds] = u_labels[np.argmax(hist, 0)]
+                    target = torch.from_numpy(spixel_gt).long()
+                    target = torch.reshape(target,(288,384))
+                    if target.sum().numpy() == 0:
+                        target = gts[i].cpu()
+                    target = target.unsqueeze(0)
+                    new_gts_tem.append(target)
 
+                else:
+                    '''refine'''
+                    for inds in seg_labs[i]:
+                        u_labels, hist = np.unique(im_target[inds], return_counts=True)
+                        im_target[inds] = u_labels[np.argmax(hist,0)]
 
-                        if im_target.sum() < 128:
-                            for inds in seg_labs[i]:
-                                # u_labels, hist = np.unique(im_target[inds], return_counts=True)
-                                if im_target[inds].sum() > 0:
-                                    im_target[inds] = 1
+                    if im_target.sum() == 0:
+                        im_target = gts[i].view(-1, 1).cpu().detach().numpy()
+                    im_target = np.resize(im_target, (288,384))
 
-                        else:
-                            for inds in seg_labs[i]:
-                                u_labels, hist = np.unique(im_target[inds], return_counts=True)
-                                im_target[inds] = u_labels[np.argmax(hist,0)]
+                    spixel_gt = im_target * gts[i].cpu().detach().numpy()
+                    target = torch.from_numpy(im_target).long()
+                    # gt = gts[i].cpu().clone().detach()
+                    # cv2.imwrite(os.path.join('123', img_names[i]), target.numpy() * 255)
+                    # target = torch.reshape(target,(288,384))
+                    target = target.unsqueeze(0)
+                    new_gts_tem.append(target)
 
-                        if im_target.sum() == 0:
-                            im_target = gts[i].view(-1, 1).cpu().detach().numpy()
-                        im_target = np.resize(im_target, (288,384))
+                if not os.path.exists(os.path.join('new_gt', str(epoch))):
+                    os.mkdir(os.path.join('new_gt', str(epoch)))
+                cv2.imwrite(os.path.join('new_gt', str(epoch), img_names[i]), spixel_gt.reshape((288, 384)) * 255)
 
 
-                        # print(img_names[i])
-                        target = torch.from_numpy(im_target).long()
-                        # gt = gts[i].cpu().clone().detach()
-                        cv2.imwrite(os.path.join('123', img_names[i]), target.numpy() * 255)
-                        # target = torch.reshape(target,(288,384))
-                        target = target.unsqueeze(0)
-                        temps.append(target)
-
-                new_gt = torch.cat([x for x in temps],0)
-                #new_gt = torch.cat((temps[0],temps[1]),0)
-                new_gt = new_gt.to(device)
+            new_gt = torch.cat([x for x in new_gts_tem],0)
+            #new_gt = torch.cat((temps[0],temps[1]),0)
+            new_gt = new_gt.to(device)
 
             # from utils.crf import dense_crf
             # crf_res = []
@@ -321,7 +308,7 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
             if epoch < size_loss_epoch:
                 loss = criterion(outputs, new_gt)
             else:
-                loss = criterion2(outputs,new_gt,1, args.boundary_co)
+                loss = criterion2(outputs,new_gt,1, 0.01*epoch, 1-0.01*epoch)
                 optimizer.lr = args.lr/10
 
             # if args.loss == 'ce-dice':
@@ -371,7 +358,8 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                      % (epoch + 1, end_epoch, train_loss_epoch, test_loss_epoch, test_dice_epoch, time_cost))
 
         # save checkpoint
-        if test_loss_epoch < best_loss:
+        # if test_loss_epoch < best_loss:
+        if test_dice_epoch > best_dice:
             logging.info('Checkpoint Saving...')
 
             save_model = net
@@ -384,8 +372,9 @@ def Train(train_root, train_csv, test_root, test_csv, iter_time, checkpoint_name
                 'epoch': epoch + 1,
                 'history': history
             }
-            torch.save(state, checkpoint_name)
-            best_loss = test_loss_epoch
+            # torch.save(state, checkpoint_name)
+            # best_loss = test_loss_epoch
+            best_dice = test_dice_epoch
 
         # if test_dice_epoch > best_dice:
         #     logging.info('Checkpoint Saving...')
