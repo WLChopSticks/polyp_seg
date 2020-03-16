@@ -101,12 +101,12 @@ class UnionLossWithCrossEntropyAndDiceAndBoundary(nn.Module):
         self.diceLoss = DiceLoss()
         self.boundLoss = Boundary_Loss()
 
-    def forward(self, inputs, targets, starget, dice_co, boundary_co):
+    def forward(self, inputs, targets, dice_co, boundary_co):
         loss_crossEntropy = self.crossEntropyLoss(inputs, targets)
         diceLoss = self.diceLoss(inputs, targets)
         loss_boundary = self.boundLoss(inputs, targets)
 
-        return loss_crossEntropy +1 * diceLoss + loss_boundary
+        return loss_crossEntropy +dice_co * diceLoss + boundary_co * loss_boundary
 
 class Boundary_Loss(nn.Module):
     """
@@ -140,6 +140,23 @@ class Boundary_Loss(nn.Module):
 
         return loss * loss
 
+        # N = targets.size(0)
+        # smooth = 1
+        # inputs = F.softmax(inputs, dim=1)
+        # inputs_obj = inputs[:, 1, :, :]
+        # inputs_obj[inputs_obj >= threshold] = 1
+        # inputs_obj[inputs_obj < threshold] = 0
+        # inputs_obj = inputs_obj.long()
+        #
+        # input_flat = inputs_obj.view(N, -1)
+        # target_flat = targets.view(N, -1)
+        #
+        # dice_coef = (2. * (input_flat * target_flat).float().sum() + smooth) / (
+        #             input_flat.float().sum() + target_flat.float().sum() + smooth)
+        # loss = 1 - dice_coef
+        inputs = F.softmax(inputs, dim=1)
+        assert simplex(inputs)
+        preds = torch.argmax(inputs, dim=1)
         gts = targets
 
         loss = torch.mean(torch.sum(gts * torch.log(gts / (preds+1e-8))))

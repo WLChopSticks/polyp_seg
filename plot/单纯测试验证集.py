@@ -44,7 +44,7 @@ def validate(val_csv_path, dataset_root, checkpoint_path):
     IoU_bg = 0
     IoU_mean = 0
 
-    for inputs, labels in val_dataloader:
+    for inputs, labels, _ in val_dataloader:
         inputs = inputs.to(device)
         labels = labels.to(device)
         with torch.set_grad_enabled(False):
@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
     dataset_root = os.path.join(sys.path[0],'../data/CVC-912/test')
     val_csv_path = os.path.join(sys.path[0],'../data/fixed-csv/test.csv')
-    checkpoint_path = os.path.join(sys.path[0],'../unet_baseline/checkpoint/deeplabV3+/0run0.pkl')
+    checkpoint_path = os.path.join(sys.path[0],'../unet_baseline/checkpoint/deeplabV3+/0init_0.7668.pkl')
     result = validate(val_csv_path, dataset_root, checkpoint_path)
     print(result)
     # send result to wechat

@@ -41,7 +41,7 @@ class poly_seg(Dataset):
         img = img.sub(0.5).div(0.5)
         mask = mask.long().squeeze(dim=0)
         # mask = mask.sub(0.5).div(0.5)
-        return img, mask
+        return img, mask, self.imgs[idx]
 
     def __len__(self):
         return len(self.imgs)
