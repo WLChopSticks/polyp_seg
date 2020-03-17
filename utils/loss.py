@@ -106,7 +106,7 @@ class UnionLossWithCrossEntropyAndDiceAndBoundary(nn.Module):
         diceLoss = self.diceLoss(inputs, targets)
         loss_boundary = self.boundLoss(inputs, targets)
 
-        return loss_crossEntropy +dice_co * diceLoss + boundary_co * loss_boundary
+        return loss_crossEntropy +1 * diceLoss + 0 * loss_boundary
 
 class Boundary_Loss(nn.Module):
     """
@@ -126,6 +126,7 @@ class Boundary_Loss(nn.Module):
         for i in range(len(inputs)):
             pred = preds[i]
             data2 = class2one_hot(pred, 2)
+            data4 = data2
             # print(data2)
             data2 = data2[0].cpu().numpy()
             data3 = one_hot2dist(data2)  # bcwh
@@ -135,7 +136,7 @@ class Boundary_Loss(nn.Module):
             Loss = SurfaceLoss()
             data3 = torch.tensor(data3).unsqueeze(0).to(device='cuda')
 
-            res = Loss(logits, data3, None)
+            res = Loss(logits, data3, data4)
             loss += res
 
         return loss * loss
@@ -271,17 +272,18 @@ class SurfaceLoss():
         self.idc: List[int] = [1]   #这里忽略背景类  https://github.com/LIVIAETS/surface-loss/issues/3
 
     # probs: bcwh, dist_maps: bcwh
-    def __call__(self, probs: Tensor, dist_maps: Tensor, _: Tensor) -> Tensor:
+    def __call__(self, probs: Tensor, dist_maps: Tensor, mask: Tensor) -> Tensor:
         assert simplex(probs)
         assert not one_hot(dist_maps)
 
         pc = probs[:, self.idc, ...].type(torch.float32)
         dc = dist_maps[:, self.idc, ...].type(torch.float32)
-
+        mk = mask[:, self.idc, ...].type(torch.float32)
         #print('pc', pc)
         #print('dc', dc)
+        minus = pc - mk
 
-        multipled = einsum("bcwh,bcwh->bcwh", pc, dc)
+        multipled = einsum("bcwh,bcwh->bcwh", minus, dc)
 
         loss = multipled.mean()
 
