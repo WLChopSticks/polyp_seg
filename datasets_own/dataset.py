@@ -21,10 +21,13 @@ class poly_seg(Dataset):
         img = Image.open(os.path.join(self.root, 'images', self.imgs[idx]))
         if img.mode != 'RGB':
             img = img.convert('RGB')
+        mask_name = self.masks[idx]
+        # if 'tif' in mask_name and 'train' in self.root:
+        #     mask_name = mask_name.replace('tif', 'bmp')
         if self.iter_time is not None and self.iter_time != 0:
-            mask = Image.open(os.path.join(self.root, 'masks', str(self.iter_time), self.masks[idx]))
+            mask = Image.open(os.path.join(self.root, 'masks', str(self.iter_time), mask_name))
         else:
-            mask = Image.open(os.path.join(self.root, 'masks', self.masks[idx]))
+            mask = Image.open(os.path.join(self.root, 'masks', mask_name))
         if mask.mode != 'L':
             mask = mask.convert('L')
         mask_arr = np.array(mask)
@@ -41,7 +44,7 @@ class poly_seg(Dataset):
         img = img.sub(0.5).div(0.5)
         mask = mask.long().squeeze(dim=0)
         # mask = mask.sub(0.5).div(0.5)
-        return img, mask, self.imgs[idx]
+        return img, mask, self.masks[idx]
 
     def __len__(self):
         return len(self.imgs)
