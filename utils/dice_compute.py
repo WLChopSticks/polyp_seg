@@ -3,8 +3,8 @@ import cv2
 '''
 计算两个文件夹中图片的dice
 '''
-gt_dir = '/Users/wanglei/Documents/polyp_seg/polyp_seg/data/CVC-912/tr/masks'
-mask_dir = '/Users/wanglei/Documents/polyp_seg/polyp_seg/unet_baseline/checkpoint/deeplabV3+/output/new_gt/0'
+gt_dir = '/Users/wanglei/Documents/polyp_seg/polyp_seg/unet_baseline/checkpoint/deeplabV3+/output/new_gt/masks'
+mask_dir = '/Users/wanglei/Documents/polyp_seg/polyp_seg/unet_baseline/checkpoint/deeplabV3+/output/new_gt/ite1_gt'
 
 for (root, dirs, files) in os.walk(mask_dir):
     dice_total = 0
@@ -15,8 +15,8 @@ for (root, dirs, files) in os.walk(mask_dir):
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
         mask = mask / 255
 
-        if '612' in file:
-            file = file.replace('bmp', 'tif')
+        # if '612' in file:
+        #     file = file.replace('bmp', 'tif')
         print(file)
         gt_path = os.path.join(gt_dir, file)
         gt = cv2.imread(gt_path)
